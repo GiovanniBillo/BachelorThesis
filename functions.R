@@ -287,7 +287,12 @@ apply_first_differencing <- function(df, stats_list, commodity){
     
     # final_plot_acf_pacf <- final_plot_acf_pacf + acf + pacf
   }
+  #browser()
+  if (commodity == "GAS"){
+    ## apply log to HENRYHUB
+    df$HENRYHUB = c(NA, diff(log(df$HENRYHUB)))
+  }
   
-  write_xlsx(df, paste0(commodity, "_firstdifferenced.xlsx"))
+  write_xlsx(df, paste0("data/", commodity, "_firstdifferenced.xlsx"))
   print(paste0(commodity, "_firstdifferenced.xlsx", " created"))
 }

@@ -28,8 +28,8 @@ source("functions.R")
 
 
 ## Read in data (assembled beforehand) ##
-data_oil <- read_excel("complete_dataframe.xlsx")
-data_gas <- read_excel("complete_dataframe_gas.xlsx")
+data_oil <- read_excel("data/complete_dataframe.xlsx")
+data_gas <- read_excel("data/complete_dataframe_gas.xlsx")
 
 #### SUMMARY STATISTICS (PRE-DIFFERENCING) ####
 # remove insignificant columns
@@ -43,6 +43,7 @@ stats_gas = summary_statistics(data_gas[values_gas], "GAS", "(Pre-differencing)"
 
 apply_first_differencing(data_oil, stats_oil, "OIL")
 apply_first_differencing(data_gas, stats_gas, "GAS")
+
 
 data_gas_fd <- read_excel("GAS_firstdifferenced.xlsx")
 data_gas_fd = drop_na(data_gas_fd)
@@ -126,4 +127,6 @@ webshot(html_file, file = png_file, vwidth = 1600, vheight = 900)
 table <- kable(stats_list, "latex", caption = "oil summary statistics (pre-differencing")
 latex_table = kable_styling(table)
 writeLines(as.character(latex_table), "OIL_summary_statistics_pre_diff.tex")
+
+
 
