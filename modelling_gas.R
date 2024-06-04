@@ -13,8 +13,6 @@ ssh(library(keras)) # neural networks
 
 source("functions.R")
 
-#### CONSTANTS ####
-window_size = 50
 
 #### IMPORT DATA FROM LOCAL TO AVOID RELOADING EVERYTHING EVERYTIME ####
 data_gas <- read_excel("data/GAS_firstdifferenced.xlsx")
@@ -63,7 +61,14 @@ accuracy_table= data.frame(
 
 # Iterate over the rolling window (TESTING)####
 
-predictions_arima = rolling_windows(train_data, test_data, auto.arima, 50)
+# predictions_arima = rolling_windows(train_data, test_data, auto.arima, 50)
+
+model_arima_GAS = auto.arima(train_data$HENRYHUB)
+window_sizes <- seq(24, 60, by = 1)  # Example window sizes
+forecast_horizon <- 1  # Number of steps to forecast ahead
+
+# rolling_arima(train_data, 10, 1)
+arima_windows_evaluation_gas = evaluate_window_size(validation_data, window_sizes, forecast_horizon, rolling_arima, model_arima_GAS)
 
 # window_size = 10
 # n_windows = nrow(test_data) - window_size
@@ -90,16 +95,18 @@ predictions_arima = rolling_windows(train_data, test_data, auto.arima, 50)
 # predictions
 
 # Evaluate performance 
+best_window_size_arima_gas = window_sizes[which.min(arima_windows_evaluation_gas$MAE)]
 
+predictions_arima_gas = rolling_arima(test_data, best_window_size_arima_gas, forecast_horizon, model_arima_GAS)
 check_set_y = subset(test_data, select = HENRYHUB)
-check_set_y = check_set_y$HENRYHUB[(window_size + 1):length(test_data$HENRYHUB)]
+check_set_y = check_set_y$HENRYHUB[(best_window_size_arima_gas + 1):length(test_data$HENRYHUB)]
 
 # return error metrics
-acc_arima = accuracy(na.omit(predictions_arima), na.omit(check_set_y))
+acc_arima = accuracy(na.omit(predictions_arima_gas), na.omit(check_set_y))
 
 ggplot(data_gas) +
   geom_line(aes(x = date, y = HENRYHUB, color = "Original")) +
-  geom_line(data = test_data[-(1:50),], aes(x = date, y = predictions_arima, color = "Forecast")) +
+  geom_line(data = test_data[-(1:best_window_size_arima_gas),], aes(x = date, y = predictions_arima_gas, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "ARIMA forecast", y = "HENRYHUB (% change)")
 
@@ -119,13 +126,22 @@ ggplot(data_gas) +
 
 # Testing
 
-predictions_ets = rolling_windows(train_data, test_data, ets, 50)
+# predictions_ets = rolling_windows(train_data, test_data, ets, 50)
+
+model_ets_GAS = ets(train_data$HENRYHUB)
+
+ets_windows_evaluation_gas = evaluate_window_size(validation_data, window_sizes, forecast_horizon, rolling_ets, model_ets_GAS)
+
+best_window_size_ets = window_sizes[which.min(ets_windows_evaluation_gas$MAE)]
+
+predictions_ets_gas = rolling_ets(test_data, best_window_size_ets, forecast_horizon, model_ets_GAS)
 
 ggplot(data_gas) +
   geom_line(aes(x = date, y = HENRYHUB, color = "Original")) +
-  geom_line(data = test_data[-(1:50),], aes(x = date, y = predictions_ets, color = "Forecast")) +
+  geom_line(data = test_data[-(1:best_window_size_ets),], aes(x = date, y = predictions_ets_gas, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
-  labs(title = "Exponential Smoothing forecast", y = "HENRYHUB (% change)")
+  labs(title = "Exponential Smoothing forecast", y = "WTI (% change)")
+
 # 
 # window_size = 10
 # n_windows = nrow(test_data) - window_size
@@ -149,10 +165,10 @@ ggplot(data_gas) +
 
 # Evaluate performance 
 check_set_y = subset(test_data, select = HENRYHUB) 
-check_set_y = check_set_y$HENRYHUB[(window_size + 1):length(test_data$HENRYHUB)]
+check_set_y = check_set_y[[1]][(best_window_size_arima_gas + 1):length(test_data$HENRYHUB)]
 
 # return error metrics
-acc_ets = accuracy(na.omit(predictions_ets), na.omit(check_set_y))
+acc_ets = accuracy(replace_zero(predictions_ets_gas), replace_zero(check_set_y))
 
 
 # No change

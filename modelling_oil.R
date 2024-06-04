@@ -17,86 +17,6 @@ ssh(library(tidyr))
 source("functions.R")
 
 
-#### CONSTANTS ####
-window_size = 50
-
-#### FUNCTIONS ####
-mape <- function(actual, forecast) {
-  # Define the very small value to substitute
-  small_value <- 1e-10  # Adjust this value as needed
-  
-  # Substitute 0 with very small value
-  actual <- ifelse(actual == 0, small_value, actual)
-  forecast <- ifelse(forecast == 0, small_value, forecast)
-  r = abs((actual - forecast) / actual)
-  return(mean(r) * 100)
-}
-
-rolling_arima <- function(data, window_size, forecast_horizon) {
-  # browser()
-  n <- length(data$WTI)
-  forecasts <- numeric(n - window_size - forecast_horizon + 1)
-  
-  for (i in 1:(n - window_size - forecast_horizon + 1)) {
-    tryCatch({
-      window_data <- data[i:(i + window_size - 1), ]
-      fit <- arima(window_data$WTI, order = c(3, 0, 0))  # Using AR(3) as an example
-      forecast <- predict(fit, n.ahead = forecast_horizon)
-      forecasts[i] <- extract_forecast(forecast)
-    }, error = function(e) {
-      # Error-handling block
-      # Print error message
-      print(paste("Error:", e))
-      
-      # Apply differencing to make the data stationary
-      window_data$WTI <- c(NA, diff(window_data$WTI, lag = 1, differences = 1))  # First-order differencing
-      
-      # Retry fitting the ARIMA model with differenced data
-      fit <- arima(window_data$WTI, order = c(3, 0, 0))
-      
-      # Proceed with forecasting
-      forecast <- predict(fit, n.ahead = forecast_horizon)
-      forecasts[i] <- extract_forecast(forecast)
-    })
-
-  }
-  
-  return(forecasts)
-}
-
-rolling_ets <- function(data, window_size, forecast_horizon) {
-  # browser()
-  n <- length(data$WTI)
-  forecasts <- numeric(n - window_size - forecast_horizon + 1)
-  
-  for (i in 1:(n - window_size - forecast_horizon + 1)) {
-    window_data <- data[i:(i + window_size - 1), ]
-    fit <- ets(window_data$WTI, alpha = 1e-04) 
-    forecast <- predict(fit, n.ahead = forecast_horizon)
-    forecasts[i] <- extract_forecast(forecast)
-  }
-  
-  return(forecasts)
-}
-
-evaluate_window_size <- function(data, window_sizes, forecast_horizon, func) {
-  actual_values <- data[(max(window_sizes) + forecast_horizon):length(data), ]
-  results <- data.frame(WindowSize = integer(), MAE = numeric(), MSE = numeric(), MAPE = numeric())
-  
-  for (window_size in window_sizes) {
-    forecasts <- func(data, window_size, forecast_horizon)
-    forecasts <- forecasts[1:length(actual_values[[1]])]
-    
-    mae <- mae(actual_values$WTI, forecasts)
-    mse <- mse(actual_values$WTI, forecasts)
-    mape <- mape(actual_values$WTI, forecasts)
-    
-    results <- rbind(results, data.frame(WindowSize = window_size, MAE = mae, MSE = mse, MAPE = mape))
-  }
-  
-  return(results)
-}
-
 #### IMPORT DATA FROM LOCAL TO AVOID RELOADING EVERYTHING EVERYTIME ####
 data_oil <- read_excel("OIL_firstdifferenced.xlsx")
 data_oil = drop_na(data_oil)
@@ -153,14 +73,8 @@ window_sizes <- seq(24, 60, by = 1)  # Example window sizes
 forecast_horizon <- 1  # Number of steps to forecast ahead
 
 rolling_arima(train_data, 10, 1)
-arima_windows_evaluation = evaluate_window_size(validation_data, window_sizes, forecast_horizon, rolling_arima)
+arima_windows_evaluation = evaluate_window_size(validation_data, window_sizes, forecast_horizon, rolling_arima, model_arima)
 
-n_windows = nrow(test_data) - window_size
-acf(model_arima$residuals)
-Box.test(model_arima$residuals, lag = 20, type = "Ljung-Box")
-
-fit = fitted(model_arima, h = 1)
-predictions = c()
 
 for (i in 1:n_windows) {
   # Define training and validation data
@@ -181,16 +95,15 @@ for (i in 1:n_windows) {
 }
 predictions_arima = predictions
 
-# Evaluate performance 
-check_set_y = subset(test_data, select = WTI) 
-check_set_y = check_set_y$WTI[(window_size + 1):length(test_data$WTI)]
-
 # return error metrics
-acc_arima = accuracy(na.omit(predictions_arima), na.omit(check_set_y))
 
 best_window_size_arima = window_sizes[which.min(arima_windows_evaluation$MAE)]
 
-predictions_arima = rolling_arima(test_data, best_window_size_arima, forecast_horizon)
+predictions_arima = rolling_arima(test_data, best_window_size_arima, forecast_horizon, order = c(3, 0, 0))
+# Evaluate performance 
+check_set_y = subset(test_data, select = WTI) 
+check_set_y = check_set_y$WTI[(best_window_size_arima + 1):length(test_data$WTI)]
+acc_arima = accuracy(replace_zero(predictions_arima), replace_zero(check_set_y)) ###? why Nans and Inf?
 
 ggplot(data_oil) +
   geom_line(aes(x = date, y = WTI, color = "Original")) +
@@ -216,7 +129,7 @@ ggplot(data_oil) +
 model_ets = ets(train_data$WTI)
 predictions_ets = rolling_windows(train_data, test_data, ets, 50)
 
-ets_windows_evaluation = evaluate_window_size(validation_data, window_sizes, forecast_horizon, rolling_ets)
+ets_windows_evaluation = evaluate_window_size(validation_data, window_sizes, forecast_horizon, rolling_ets, model_ets)
 
 best_window_size_ets = window_sizes[which.min(ets_windows_evaluation$MAE)]
 
