@@ -20,20 +20,6 @@ window_size = 50
 data_gas <- read_excel("data/GAS_firstdifferenced.xlsx")
 data_gas = drop_na(data_gas)
 
-## Remove and replace outliers
-# Calculate the mean of the series
-mean_value <- mean(data_gas$HENRYHUB)
-
-# Calculate the maximum allowed change
-max_change <- 10
-
-# Find indices where the change exceeds the maximum allowed change
-indices_to_replace <- abs(data_gas$HENRYHUB) > max_change
-
-# Replace values exceeding the maximum change with the mean of the series
-data_gas$HENRYHUB[indices_to_replace] <- mean_value
-
-
 ## train-validation-test split 
 set.seed(122)
 n = nrow(data_gas)

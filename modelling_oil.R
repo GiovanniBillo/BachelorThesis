@@ -11,12 +11,91 @@ ssh(library(forecast))
 ssh(library(rugarch))
 ssh(library(ModelMetrics))
 ssh(library(keras)) # neural networks
-
+ssh(library(readxl))
+ssh(library(writexl))
+ssh(library(tidyr))
 source("functions.R")
 
 
 #### CONSTANTS ####
 window_size = 50
+
+#### FUNCTIONS ####
+mape <- function(actual, forecast) {
+  # Define the very small value to substitute
+  small_value <- 1e-10  # Adjust this value as needed
+  
+  # Substitute 0 with very small value
+  actual <- ifelse(actual == 0, small_value, actual)
+  forecast <- ifelse(forecast == 0, small_value, forecast)
+  r = abs((actual - forecast) / actual)
+  return(mean(r) * 100)
+}
+
+rolling_arima <- function(data, window_size, forecast_horizon) {
+  # browser()
+  n <- length(data$WTI)
+  forecasts <- numeric(n - window_size - forecast_horizon + 1)
+  
+  for (i in 1:(n - window_size - forecast_horizon + 1)) {
+    tryCatch({
+      window_data <- data[i:(i + window_size - 1), ]
+      fit <- arima(window_data$WTI, order = c(3, 0, 0))  # Using AR(3) as an example
+      forecast <- predict(fit, n.ahead = forecast_horizon)
+      forecasts[i] <- extract_forecast(forecast)
+    }, error = function(e) {
+      # Error-handling block
+      # Print error message
+      print(paste("Error:", e))
+      
+      # Apply differencing to make the data stationary
+      window_data$WTI <- c(NA, diff(window_data$WTI, lag = 1, differences = 1))  # First-order differencing
+      
+      # Retry fitting the ARIMA model with differenced data
+      fit <- arima(window_data$WTI, order = c(3, 0, 0))
+      
+      # Proceed with forecasting
+      forecast <- predict(fit, n.ahead = forecast_horizon)
+      forecasts[i] <- extract_forecast(forecast)
+    })
+
+  }
+  
+  return(forecasts)
+}
+
+rolling_ets <- function(data, window_size, forecast_horizon) {
+  # browser()
+  n <- length(data$WTI)
+  forecasts <- numeric(n - window_size - forecast_horizon + 1)
+  
+  for (i in 1:(n - window_size - forecast_horizon + 1)) {
+    window_data <- data[i:(i + window_size - 1), ]
+    fit <- ets(window_data$WTI, alpha = 1e-04) 
+    forecast <- predict(fit, n.ahead = forecast_horizon)
+    forecasts[i] <- extract_forecast(forecast)
+  }
+  
+  return(forecasts)
+}
+
+evaluate_window_size <- function(data, window_sizes, forecast_horizon, func) {
+  actual_values <- data[(max(window_sizes) + forecast_horizon):length(data), ]
+  results <- data.frame(WindowSize = integer(), MAE = numeric(), MSE = numeric(), MAPE = numeric())
+  
+  for (window_size in window_sizes) {
+    forecasts <- func(data, window_size, forecast_horizon)
+    forecasts <- forecasts[1:length(actual_values[[1]])]
+    
+    mae <- mae(actual_values$WTI, forecasts)
+    mse <- mse(actual_values$WTI, forecasts)
+    mape <- mape(actual_values$WTI, forecasts)
+    
+    results <- rbind(results, data.frame(WindowSize = window_size, MAE = mae, MSE = mse, MAPE = mape))
+  }
+  
+  return(results)
+}
 
 #### IMPORT DATA FROM LOCAL TO AVOID RELOADING EVERYTHING EVERYTIME ####
 data_oil <- read_excel("OIL_firstdifferenced.xlsx")
@@ -65,31 +144,42 @@ accuracy_table= data.frame(
 
 # Iterate over the rolling window (TESTING)####
 
-predictions_arima = rolling_windows(train_data, test_data, auto.arima, 50)
+# predictions_arima = rolling_windows(train_data, test_data, auto.arima, 50)
 
 # window_size = 10
-# n_windows = nrow(test_data) - window_size
-# predictions = c()
-# for (i in 1:n_windows) {
-#   # Define training and validation data
-#   # if (i > 7){
-#   #   browser()
-#   #   
-#   # }
-#   train_subset <- train_data[i:(i + window_size - 1), ]
-#   check_subset <- train_data[(i + window_size), ] # test or train
-#   
-#   model <- auto.arima(train_subset$WTI)
-#   
-#   # Make predictions
-#   check_set_x = subset(check_subset, select = -WTI)
-#   new_prediction <- predict(model, newdata = check_set_x)
-#   class(new_prediction)
-#   predictions = c(predictions, extract_forecast(new_prediction))
-# }
-# predictions
-# 
-# predictions
+# SELECTS THE BEST MODEL
+model_arima = auto.arima(train_data$WTI)
+window_sizes <- seq(24, 60, by = 1)  # Example window sizes
+forecast_horizon <- 1  # Number of steps to forecast ahead
+
+rolling_arima(train_data, 10, 1)
+arima_windows_evaluation = evaluate_window_size(validation_data, window_sizes, forecast_horizon, rolling_arima)
+
+n_windows = nrow(test_data) - window_size
+acf(model_arima$residuals)
+Box.test(model_arima$residuals, lag = 20, type = "Ljung-Box")
+
+fit = fitted(model_arima, h = 1)
+predictions = c()
+
+for (i in 1:n_windows) {
+  # Define training and validation data
+  # if (i > 7){
+  #   browser()
+  #
+  # }
+  train_subset <- train_data[i:(i + window_size - 1), ]
+  check_subset <- train_data[(i + window_size), ] # test or train
+
+  model <- arima(train_subset$WTI, order = c(3, 0, 0))
+
+  # Make predictions
+  check_set_x = subset(check_subset, select = -WTI)
+  new_prediction <- predict(model, newdata = check_set_x)
+  class(new_prediction)
+  predictions = c(predictions, extract_forecast(new_prediction))
+}
+predictions_arima = predictions
 
 # Evaluate performance 
 check_set_y = subset(test_data, select = WTI) 
@@ -98,9 +188,13 @@ check_set_y = check_set_y$WTI[(window_size + 1):length(test_data$WTI)]
 # return error metrics
 acc_arima = accuracy(na.omit(predictions_arima), na.omit(check_set_y))
 
+best_window_size_arima = window_sizes[which.min(arima_windows_evaluation$MAE)]
+
+predictions_arima = rolling_arima(test_data, best_window_size_arima, forecast_horizon)
+
 ggplot(data_oil) +
   geom_line(aes(x = date, y = WTI, color = "Original")) +
-  geom_line(data = test_data[-(1:50),], aes(x = date, y = predictions_arima, color = "Forecast")) +
+  geom_line(data = test_data[-(1:best_window_size_arima),], aes(x = date, y = predictions_arima, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "ARIMA forecast", y = "WTI (% change)")
 
@@ -119,15 +213,22 @@ ggplot(data_oil) +
 # rolling_windows(train_data, validation_data, exp_smooth_model , 10)
 
 # Testing
-
+model_ets = ets(train_data$WTI)
 predictions_ets = rolling_windows(train_data, test_data, ets, 50)
+
+ets_windows_evaluation = evaluate_window_size(validation_data, window_sizes, forecast_horizon, rolling_ets)
+
+best_window_size_ets = window_sizes[which.min(ets_windows_evaluation$MAE)]
+
+predictions_ets = rolling_ets(test_data, best_window_size_ets, forecast_horizon)
 
 ggplot(data_oil) +
   geom_line(aes(x = date, y = WTI, color = "Original")) +
-  geom_line(data = test_data[-(1:50),], aes(x = date, y = predictions_ets, color = "Forecast")) +
+  geom_line(data = test_data[-(1:best_window_size_ets),], aes(x = date, y = predictions_ets, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "Exponential Smoothing forecast", y = "WTI (% change)")
-# 
+
+
 # window_size = 10
 # n_windows = nrow(test_data) - window_size
 # predictions = c()
@@ -154,7 +255,6 @@ check_set_y = check_set_y$WTI[(window_size + 1):length(test_data$WTI)]
 
 # return error metrics
 acc_ets = accuracy(na.omit(predictions_ets), na.omit(check_set_y))
-
 
 # No change
 
@@ -222,34 +322,68 @@ ggplot(data_oil) +
   labs(title = "Random Forest forecast", y = "WTI (% change)")
 
 # Recurrent Neural Network
+library(caret)
+# set some parameters for our model
+max_len <- 6 # the number of previous examples we'll look at
+batch_size <- 32 # number of sequences to look at at one time during training
+total_epochs <- 15 # how many times we'll look @ the whole dataset while training our model
 
-NNdata = data.matrix(data[, -1]) # remove date column
-NNtrain <- NNdata[1:n_train, ]
-NNvalidation <- NNdata[(n_train + 1):(n_train + n_validation), ]
-NNtest <- NNdata[(n_train + n_validation + 1):n, ]
-# preprocessing
-mean = apply(NNtrain, 2, mean) # 2 parameter indicates that function will be applied column-wise
-std = apply(NNtrain, 2, sd)
-NNdata <- scale(NNdata, center = mean, scale = std)
+# set a random seed for reproducability
+set.seed(123)
 
-accuracy_table = rbind(acc_arima, acc_ets, acc_no_change, acc_rf)
-rownames(accuracy_table) = c("ARIMA", "ETS", "No change", "Random Forest")
+wti = data_oil$WTI
 
-create_table_from_df(accuracy_table, "Accuracy measures Benchmark vs ML models - OIL")
+# get a list of start indexes for our (overlapping) chunks
+start_indexes <- seq(1, length(wti) - (max_len + 1), by = 3)
+
+# create an empty matrix to store our data in
+wti_matrix <- matrix(nrow = length(start_indexes), ncol = max_len + 1)
+
+# fill our matrix with the overlapping slices of our dataset
+for (i in 1:length(start_indexes)){
+  wti_matrix[i,] <- wti[start_indexes[i]:(start_indexes[i] + max_len)]
+}
+# make sure it's numeric
+wti_matrix <- wti_matrix * 1
+
+# remove na's if you have them
+if(anyNA(wti_matrix)){
+  wti_matrix <- na.omit(wti_matrix)
+}
+# split our data into the day we're predict (y), and the 
+# sequence of days leading up to it (X)
+X <- wti_matrix[,-ncol(wti_matrix)]
+y <- wti_matrix[,ncol(wti_matrix)]
+
+training_index <- createDataPartition(y, p = .7, 
+                                      list = FALSE, 
+                                       times = 1)
+
+# training data
+X_train <- array(X[training_index,], dim = c(length(training_index), max_len, 1))
+y_train <- y[training_index]
+
+remotes::install_github("rstudio/tensorflow")
+reticulate::install_python()
+library(tensorflow)
+install_tensorflow(envname = "r-tensorflow")
+
+install.packages("keras")
+library(keras)
+install_keras()
+# NNtrain <- NNdata[1:n_train, ]
+# NNvalidation <- NNdata[(n_train + 1):(n_train + n_validation), ]
+# NNtest <- NNdata[(n_train + n_validation + 1):n, ]
+# # preprocessing
+# mean = apply(NNtrain, 2, mean) # 2 parameter indicates that function will be applied column-wise
+# std = apply(NNtrain, 2, sd)
+# NNdata <- scale(NNdata, center = mean, scale = std)
+# 
+# accuracy_table = rbind(acc_arima, acc_ets, acc_no_change, acc_rf)
+# rownames(accuracy_table) = c("ARIMA", "ETS", "No change", "Random Forest")
+# 
+# create_table_from_df(accuracy_table, "Accuracy measures Benchmark vs ML models - OIL")
 `
 # pakcage RNN`
-#### archive ####
-# # Pad shorter vectors with NA to make them equal length
-# data <- lapply(data, function(x) {
-#   if (length(x) < max_length) {
-#     c(x, rep(NA, max_length - length(x)))
-#   } else {
-#     x
-#   }
-# })
-# 
-# # Convert the list of padded vectors into a dataframe
-# data <- data.frame(data)
-# Find the maximum length among the vectors
-# max_length <- max(sapply(data, length))
+
 

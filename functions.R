@@ -1,4 +1,12 @@
-
+replace_zero = function(numeric_vector){
+  # Define the very small value to substitute
+  small_value <- 1e-10  # Adjust this value as needed
+  
+  # Substitute 0 with very small value
+  numeric_vector <- ifelse(numeric_vector == 0, small_value, numeric_vector)
+  
+  return(numeric_vector)
+}
 
 assign_day_month <-function(dates_vector){
   day_vector <- c()
@@ -295,4 +303,112 @@ apply_first_differencing <- function(df, stats_list, commodity){
   
   write_xlsx(df, paste0("data/", commodity, "_firstdifferenced.xlsx"))
   print(paste0(commodity, "_firstdifferenced.xlsx", " created"))
+}
+
+#### FUNCTIONS FOR MODELLING ####
+mape <- function(actual, forecast) {
+  # Define the very small value to substitute
+  small_value <- 1e-10  # Adjust this value as needed
+  
+  # Substitute 0 with very small value
+  actual <- ifelse(actual == 0, small_value, actual)
+  forecast <- ifelse(forecast == 0, small_value, forecast)
+  r = abs((actual - forecast) / actual)
+  return(mean(r) * 100)
+}
+
+get_params <- function(model){
+  if (class(model)[1] %in% c("forecast_ARIMA", "ARIMA", "Arima")){
+    params = c(model$arma[1], model$arma[3], model$arma[2])
+    return(params)
+    
+  }else if((class(model) == "ets")){
+    params = model$par["alpha"]
+    return(params)
+  }else{
+    print("Error: unknown model class. Can't extract parameters")
+  }
+  
+}
+
+rolling_arima <- function(data, window_size, forecast_horizon, model) {
+  n <- length(data[[2]])
+  forecasts <- numeric(n - window_size - forecast_horizon + 1)
+  
+  for (i in 1:(n - window_size - forecast_horizon + 1)) {
+    tryCatch({
+      window_data <- data[i:(i + window_size - 1), ]
+      fit <- arima(window_data[[2]], order = get_params(model))  # Using AR(3) as an example
+      forecast <- predict(fit, n.ahead = forecast_horizon)
+      forecasts[i] <- extract_forecast(forecast)
+    }, error = function(e) {
+      # Error-handling block
+      # Print error message
+      print(paste("Error:", e))
+      
+      # First-level error handling
+      tryCatch({
+        # Apply differencing to make the data stationary
+        window_data[[2]] <- c(NA, diff(window_data[[2]], lag = 1, differences = 1))  # First-order differencing
+        
+        # Retry fitting the ARIMA model with differenced data
+        fit <- arima(window_data[[2]], order = c(3, 0, 0))
+        
+        # Proceed with forecasting
+        forecast <- predict(fit, n.ahead = forecast_horizon)
+        forecasts[i] <- extract_forecast(forecast)
+      }, error = function(e) {
+        # Second-level error handling
+        print(paste("Error (second level):", e))
+        browser()  # Enter browser mode to debug
+        
+        # Apply differencing to make the data stationary again
+        window_data[[2]] <- c(NA, diff(window_data[[2]], lag = 1, differences = 1))  # First-order differencing
+        
+        # Retry fitting the ARIMA model with differenced data
+        fit <- arima(window_data[[2]], order = c(3, 0, 0))
+        
+        # Proceed with forecasting
+        forecast <- predict(fit, n.ahead = forecast_horizon)
+        forecasts[i] <- extract_forecast(forecast)
+      })
+    })
+  }
+  
+  return(forecasts)
+}
+
+rolling_ets <- function(data, window_size, forecast_horizon, model) {
+  # browser()
+  n <- length(data[[2]])
+  forecasts <- numeric(n - window_size - forecast_horizon + 1)
+  
+  for (i in 1:(n - window_size - forecast_horizon + 1)) {
+    # browser()
+    window_data <- data[i:(i + window_size - 1), ]
+    alpha = get_params(model)
+    fit <- ets(window_data[[2]], alpha = alpha) 
+    forecast <- predict(fit, n.ahead = forecast_horizon)
+    forecasts[i] <- extract_forecast(forecast)
+  }
+  
+  return(forecasts)
+}
+
+evaluate_window_size <- function(data, window_sizes, forecast_horizon, func, model) {
+  actual_values <- data[(max(window_sizes) + forecast_horizon):length(data), ]
+  results <- data.frame(WindowSize = integer(), MAE = numeric(), MSE = numeric(), MAPE = numeric())
+  
+  for (window_size in window_sizes) {
+    forecasts <- func(data, window_size, forecast_horizon, model)
+    forecasts <- forecasts[1:length(actual_values[[1]])]
+    
+    mae <- mae(actual_values[[2]], forecasts)
+    mse <- mse(actual_values[[2]], forecasts)
+    mape <- mape(actual_values[[2]], forecasts)
+    
+    results <- rbind(results, data.frame(WindowSize = window_size, MAE = mae, MSE = mse, MAPE = mape))
+  }
+  
+  return(results)
 }
