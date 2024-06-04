@@ -1,3 +1,6 @@
+## test git command line commit
+
+
 replace_zero = function(numeric_vector){
   # Define the very small value to substitute
   small_value <- 1e-10  # Adjust this value as needed
