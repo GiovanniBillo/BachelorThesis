@@ -14,6 +14,8 @@ ssh(library(keras)) # neural networks
 ssh(library(readxl))
 ssh(library(writexl))
 ssh(library(tidyr))
+library(ggplot2)
+
 source("functions.R")
 
 
@@ -97,7 +99,7 @@ predictions_arima = predictions
 
 # return error metrics
 
-best_window_size_arima = window_sizes[which.min(arima_windows_evaluation$MAE)]
+best_window_size_arima = window_sizes[which.min(rowSums(rf_windows_evaluation))]
 
 predictions_arima = rolling_arima(test_data, best_window_size_arima, forecast_horizon, order = c(3, 0, 0))
 # Evaluate performance 
@@ -131,7 +133,7 @@ predictions_ets = rolling_windows(train_data, test_data, ets, 50)
 
 ets_windows_evaluation = evaluate_window_size(validation_data, window_sizes, forecast_horizon, rolling_ets, model_ets)
 
-best_window_size_ets = window_sizes[which.min(ets_windows_evaluation$MAE)]
+best_window_size_ets = window_sizes[which.min(rowSums(rf_windows_evaluation))]
 
 predictions_ets = rolling_ets(test_data, best_window_size_ets, forecast_horizon)
 
@@ -186,55 +188,69 @@ acc_no_change = no_change_forecast(na.omit(data_oil$WTI))
 # Random forests 
 library(randomForest)
 n <- names(data_oil)
-f <- as.formula(paste("WTI ~", paste(n[!n %in% c("WTI", "day")], collapse = " + ")))
-ml_data = train_data[, !grepl("day", names(train_data))]
+f <- as.formula(paste("WTI ~", paste(n[!n %in% c("WTI", "date")], collapse = " + ")))
 
 # single estimation
-f
+install.packages("mlr") # for hyperparameter tuning
+library(mlr)
 mtry = floor(length(names(data_oil))/3) # for regression problems
 rf = randomForest(f, data = data_oil, mtry = mtry)
 rf
+summary(rf)
 importance(rf)
 varImpPlot(rf)
 
-# rw estimation
-rolling_windows(train_data, test_data, rf, 10)
+#create a task
+train_data_rf= train_data
+validation_data_rf= validation_data
+test_data_rf = test_data
+train_data_rf[] <- lapply(train_data, as.numeric)
+validation_data_rf[] <- lapply(validation_data, as.numeric)
+test_data_rf[] <- lapply(test_data, as.numeric)
+rdesc <- makeResampleDesc("CV",iters=5L)
+traintask <- makeRegrTask(data = train_data_rf,target = "WTI") 
+validationtask <- makeRegrTask(data = validation_data_rf, target = "WTI")
+testtask <- makeRegrTask(data = test_data_rf,target = "WTI")
 
-window_size = 50
-n_windows = nrow(test_data) - window_size
-predictions_rf = c()
+rf.lrn <- makeLearner("regr.randomForest")
+rf.lrn$par.vals <- list(ntree = 100L, importance=TRUE)
+r <- resample(learner = rf.lrn, task = traintask, resampling = rdesc, measures = list(mae, mse, rmse), show.info = T)
 
-for (i in 1:n_windows) {
-  # Define training and validation data
-  # browser()
-  train_subset <- train_data[i:(i + window_size - 1), ]
-  check_subset <- train_data[(i + window_size), ] # test or train
-  
-  mtry = floor(length(names(data_oil))/3) # for regression problems
-  model = randomForest(f, data = train_subset, mtry = mtry)
-  
-  # Make predictions
-  check_set_x = subset(check_subset, select = -WTI)
-  new_prediction <- predict(model, newdata = check_set_x)
-  class(new_prediction)
-  predictions_rf = c(predictions_rf, extract_forecast(new_prediction))
-}
+# hyperparameter tuning
+getParamSet(rf.lrn)
+
+params <- makeParamSet(makeIntegerParam("mtry",lower = 2,upper = 10),makeIntegerParam("nodesize",lower = 10,upper = 50),
+                       makeIntegerParam("ntree",lower = 2,upper = 1000), makeIntegerParam("maxnodes", lower = 2,upper = 500))
+#set optimization technique
+ctrl <- makeTuneControlRandom(maxit = 5L)
+tune <- tuneParams(learner = rf.lrn, task = traintask, 
+                   resampling = rdesc, 
+                   measures = list(mae, mse, rmse), par.set = params, 
+                   control = ctrl, show.info = T)
+tune
+rf_windows_evaluation = evaluate_window_size(validation_data, window_sizes, forecast_horizon, rolling_rf, tune)
+
+best_window_size_rf = best_window_size_ets = window_sizes[which.min(rowSums(rf_windows_evaluation))]
+
+predictions_rf = rolling_rf(test_data, best_window_size_rf, forecast_horizon, tune)
+
 
 # Evaluate performance 
 check_set_y = subset(test_data, select = WTI) 
-check_set_y = check_set_y$WTI[(window_size + 1):length(test_data$WTI)]
+check_set_y = check_set_y$WTI[(best_window_size_rf + 1):length(test_data$WTI)]
 
 # return error metrics
-acc_rf = accuracy(na.omit(predictions_rf), na.omit(check_set_y))
+acc_rf = accuracy(replace_zero(predictions_rf), replace_zero(check_set_y))
 
 
 ggplot(data_oil) +
   geom_line(aes(x = date, y = WTI, color = "Original")) +
-  geom_line(data = test_data[-(1:50),], aes(x = date, y = predictions_rf, color = "Forecast")) +
+  geom_line(data = test_data[-(1:best_window_size_rf),], aes(x = date, y = predictions_rf, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "Random Forest forecast", y = "WTI (% change)")
 
 # Recurrent Neural Network
+
 library(caret)
 # set some parameters for our model
 max_len <- 6 # the number of previous examples we'll look at

@@ -325,8 +325,12 @@ get_params <- function(model){
     params = c(model$arma[1], model$arma[3], model$arma[2])
     return(params)
     
-  }else if((class(model) == "ets")){
+  }else if((class(model)[1] == "ets")){
     params = model$par["alpha"]
+    return(params)
+  }else if(class(model)[1] %in% c("TuneResult", "OptResult")){
+    params= c(model$x["mtry"], model$x["nodesize"], model$x["ntree"], model$x["maxnodes"])
+    names(params) <- c("mtry", "nodesize", "ntree", "maxnodes")
     return(params)
   }else{
     print("Error: unknown model class. Can't extract parameters")
@@ -398,9 +402,33 @@ rolling_ets <- function(data, window_size, forecast_horizon, model) {
   return(forecasts)
 }
 
+rolling_rf <- function(data, window_size, forecast_horizon, model) {
+  # browser()
+  n <- length(data[[2]])
+  forecasts <- numeric(n - window_size - forecast_horizon + 1)
+  
+  # random forest specs
+  names <- names(data)
+  f <- as.formula(paste("WTI ~", paste(names[!names %in% c("WTI", "date")], collapse = " + ")))
+  
+  for (i in 1:(n - window_size - forecast_horizon + 1)) {
+    # browser()
+    window_data <- data[i:(i + window_size - 1), ]
+    params = get_params(model)
+    fit <- randomForest(f, data = data, mtry = params$mtry, 
+                        nodesize = params$nodesize, ntree = params$ntree, maxnodes = params$maxnodes)
+
+    forecast <- predict(fit, n.ahead = forecast_horizon)
+    forecasts[i] <- extract_forecast(forecast)
+  }
+  
+  return(forecasts)
+}
+
 evaluate_window_size <- function(data, window_sizes, forecast_horizon, func, model) {
   actual_values <- data[(max(window_sizes) + forecast_horizon):length(data), ]
   results <- data.frame(WindowSize = integer(), MAE = numeric(), MSE = numeric(), MAPE = numeric())
+  
   
   for (window_size in window_sizes) {
     forecasts <- func(data, window_size, forecast_horizon, model)
@@ -408,9 +436,10 @@ evaluate_window_size <- function(data, window_sizes, forecast_horizon, func, mod
     
     mae <- mae(actual_values[[2]], forecasts)
     mse <- mse(actual_values[[2]], forecasts)
+    rmse <- rmse(actual_values[[2]], forecasts)
     mape <- mape(actual_values[[2]], forecasts)
     
-    results <- rbind(results, data.frame(WindowSize = window_size, MAE = mae, MSE = mse, MAPE = mape))
+    results <- rbind(results, data.frame(WindowSize = window_size, MAE = mae, MSE = mse, RMSE = rmse, MAPE = mape))
   }
   
   return(results)
