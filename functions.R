@@ -402,36 +402,40 @@ rolling_ets <- function(data, window_size, forecast_horizon, model) {
   return(forecasts)
 }
 
-rolling_rf <- function(data, window_size, forecast_horizon, model) {
+rolling_rf <- function(tr_data, valdata, window_size, forecast_horizon, model) {
   # browser()
-  n <- length(data[[2]])
+  n <- length(tr_data[[2]])
   forecasts <- numeric(n - window_size - forecast_horizon + 1)
   
   # random forest specs
-  names <- names(data)
-  f <- as.formula(paste("WTI ~", paste(names[!names %in% c("WTI", "date")], collapse = " + ")))
+  names <- names(tr_data)
+  f <- as.formula(paste(names[2], "~", paste(names[!names %in% c(names[2], names[1])], collapse = " + ")))
   
+  j = 0
   for (i in 1:(n - window_size - forecast_horizon + 1)) {
     # browser()
-    window_data <- data[i:(i + window_size - 1), ]
+    window_data <- tr_data[i:(i + window_size - 1), ]
     params = get_params(model)
-    fit <- randomForest(f, data = data, mtry = params$mtry, 
+    fit <- randomForest(f, data = tr_data, mtry = params$mtry,
                         nodesize = params$nodesize, ntree = params$ntree, maxnodes = params$maxnodes)
-
-    forecast <- predict(fit, n.ahead = forecast_horizon)
+    # fit <- randomForest(f, data = tr_data, mtry = mtry)
+    
+    forecast <- predict(fit, n.ahead = forecast_horizon, newdata = valdata[, -c(1, 2)]) # removing target and date column before giving the predictor variables for the new datapoint
+    j = j + 1 
     forecasts[i] <- extract_forecast(forecast)
   }
   
   return(forecasts)
 }
 
-evaluate_window_size <- function(data, window_sizes, forecast_horizon, func, model) {
-  actual_values <- data[(max(window_sizes) + forecast_horizon):length(data), ]
+evaluate_window_size <- function(tr_data, val_data, window_sizes, forecast_horizon, func, model) {
+  # browser()
+  actual_values <- val_data[(max(window_sizes) + forecast_horizon):length(data), ]
   results <- data.frame(WindowSize = integer(), MAE = numeric(), MSE = numeric(), MAPE = numeric())
   
   
   for (window_size in window_sizes) {
-    forecasts <- func(data, window_size, forecast_horizon, model)
+    forecasts <- func(tr_data, val_data, window_size, forecast_horizon, model)
     forecasts <- forecasts[1:length(actual_values[[1]])]
     
     mae <- mae(actual_values[[2]], forecasts)
@@ -443,4 +447,40 @@ evaluate_window_size <- function(data, window_sizes, forecast_horizon, func, mod
   }
   
   return(results)
+}
+
+float2bin <- function(float_vector){
+  # browser()
+  # Convert the integer part to binary
+  bin_vector <- numeric(length(float_vector))
+  for (i in seq_along(float_vector)){
+    integer_part <- trunc(float_vector[[1]][i])
+    binary_int <- ""
+    while (integer_part > 0) {
+      binary_int <- paste0(integer_part %% 2, binary_int)
+      integer_part <- integer_part %/% 2
+    }
+    
+    # Convert the fractional part to binary
+    fractional_part <- float_vector[[1]][i] - integer_part
+    binary_frac <- ""
+    while (fractional_part != 0 && nchar(binary_frac) < 10) {
+      fractional_part <- fractional_part * 2
+      if (fractional_part >= 1) {
+        binary_frac <- paste0(binary_frac, "1")
+        fractional_part <- fractional_part - 1
+      } else {
+        binary_frac <- paste0(binary_frac, "0")
+      }
+    }
+    
+    # Combine the binary representations with a binary point
+    binary_str <- paste0(binary_int, ".", binary_frac)
+    
+    bin_vector <- c(bin_vector, as.numeric(binary_str))
+    # Display the binary string
+    
+  }
+  
+  return(bin_vector)
 }

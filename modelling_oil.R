@@ -14,6 +14,7 @@ ssh(library(keras)) # neural networks
 ssh(library(readxl))
 ssh(library(writexl))
 ssh(library(tidyr))
+ssh(library(ModelMetrics))
 library(ggplot2)
 
 source("functions.R")
@@ -220,7 +221,7 @@ r <- resample(learner = rf.lrn, task = traintask, resampling = rdesc, measures =
 getParamSet(rf.lrn)
 
 params <- makeParamSet(makeIntegerParam("mtry",lower = 2,upper = 10),makeIntegerParam("nodesize",lower = 10,upper = 50),
-                       makeIntegerParam("ntree",lower = 2,upper = 1000), makeIntegerParam("maxnodes", lower = 2,upper = 500))
+                       makeIntegerParam("ntree",lower = 2,upper = 500), makeIntegerParam("maxnodes", lower = 2,upper = 250))
 #set optimization technique
 ctrl <- makeTuneControlRandom(maxit = 5L)
 tune <- tuneParams(learner = rf.lrn, task = traintask, 
@@ -249,57 +250,6 @@ ggplot(data_oil) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "Random Forest forecast", y = "WTI (% change)")
 
-# Recurrent Neural Network
-
-library(caret)
-# set some parameters for our model
-max_len <- 6 # the number of previous examples we'll look at
-batch_size <- 32 # number of sequences to look at at one time during training
-total_epochs <- 15 # how many times we'll look @ the whole dataset while training our model
-
-# set a random seed for reproducability
-set.seed(123)
-
-wti = data_oil$WTI
-
-# get a list of start indexes for our (overlapping) chunks
-start_indexes <- seq(1, length(wti) - (max_len + 1), by = 3)
-
-# create an empty matrix to store our data in
-wti_matrix <- matrix(nrow = length(start_indexes), ncol = max_len + 1)
-
-# fill our matrix with the overlapping slices of our dataset
-for (i in 1:length(start_indexes)){
-  wti_matrix[i,] <- wti[start_indexes[i]:(start_indexes[i] + max_len)]
-}
-# make sure it's numeric
-wti_matrix <- wti_matrix * 1
-
-# remove na's if you have them
-if(anyNA(wti_matrix)){
-  wti_matrix <- na.omit(wti_matrix)
-}
-# split our data into the day we're predict (y), and the 
-# sequence of days leading up to it (X)
-X <- wti_matrix[,-ncol(wti_matrix)]
-y <- wti_matrix[,ncol(wti_matrix)]
-
-training_index <- createDataPartition(y, p = .7, 
-                                      list = FALSE, 
-                                       times = 1)
-
-# training data
-X_train <- array(X[training_index,], dim = c(length(training_index), max_len, 1))
-y_train <- y[training_index]
-
-remotes::install_github("rstudio/tensorflow")
-reticulate::install_python()
-library(tensorflow)
-install_tensorflow(envname = "r-tensorflow")
-
-install.packages("keras")
-library(keras)
-install_keras()
 # NNtrain <- NNdata[1:n_train, ]
 # NNvalidation <- NNdata[(n_train + 1):(n_train + n_validation), ]
 # NNtest <- NNdata[(n_train + n_validation + 1):n, ]

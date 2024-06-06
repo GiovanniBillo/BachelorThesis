@@ -95,7 +95,7 @@ arima_windows_evaluation_gas = evaluate_window_size(validation_data, window_size
 # predictions
 
 # Evaluate performance 
-best_window_size_arima_gas = window_sizes[which.min(arima_windows_evaluation_gas$MAE)]
+best_window_size_arima_gas = window_sizes[which.min(rowSums(arima_windows_evaluation_gas))]
 
 predictions_arima_gas = rolling_arima(test_data, best_window_size_arima_gas, forecast_horizon, model_arima_GAS)
 check_set_y = subset(test_data, select = HENRYHUB)
@@ -132,7 +132,7 @@ model_ets_GAS = ets(train_data$HENRYHUB)
 
 ets_windows_evaluation_gas = evaluate_window_size(validation_data, window_sizes, forecast_horizon, rolling_ets, model_ets_GAS)
 
-best_window_size_ets = window_sizes[which.min(ets_windows_evaluation_gas$MAE)]
+best_window_size_ets = window_sizes[which.min(rowSums(ets_windows_evaluation_gas))]
 
 predictions_ets_gas = rolling_ets(test_data, best_window_size_ets, forecast_horizon, model_ets_GAS)
 
@@ -140,7 +140,7 @@ ggplot(data_gas) +
   geom_line(aes(x = date, y = HENRYHUB, color = "Original")) +
   geom_line(data = test_data[-(1:best_window_size_ets),], aes(x = date, y = predictions_ets_gas, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
-  labs(title = "Exponential Smoothing forecast", y = "WTI (% change)")
+  labs(title = "Exponential Smoothing forecast", y = "HENRYHUB (% change)")
 
 # 
 # window_size = 10
@@ -183,9 +183,71 @@ no_change_forecast <- function(observations){
 acc_no_change = no_change_forecast(na.omit(data_gas$HENRYHUB))
 
 ## ML Models ##
-
-
 # Random forests 
+library(randomForest)
+n <- names(data_gas)
+f <- as.formula(paste("HENRYHUB ~", paste(n[!n %in% c("HENRYHUB", "date")], collapse = " + ")))
+
+# single estimation
+install.packages("mlr") # for hyperparameter tuning
+library(mlr)
+mtry = floor(length(names(data_gas))/3) # for regression problems
+rf = randomForest(f, data = data_gas, mtry = mtry)
+rf
+summary(rf)
+importance(rf)
+varImpPlot(rf)
+
+#create a task
+train_data_rf= train_data
+validation_data_rf= validation_data
+test_data_rf = test_data
+train_data_rf[] <- lapply(train_data, as.numeric)
+validation_data_rf[] <- lapply(validation_data, as.numeric)
+test_data_rf[] <- lapply(test_data, as.numeric)
+rdesc <- makeResampleDesc("CV",iters=5L)
+traintask <- makeRegrTask(data = train_data_rf,target = "HENRYHUB") 
+validationtask <- makeRegrTask(data = validation_data_rf, target = "HENRYHUB")
+testtask <- makeRegrTask(data = test_data_rf,target = "HENRYHUB")
+
+rf.lrn <- makeLearner("regr.randomForest")
+rf.lrn$par.vals <- list(ntree = 100L, importance=TRUE)
+r <- resample(learner = rf.lrn, task = traintask, resampling = rdesc, measures = list(mae, mse, rmse), show.info = T)
+
+# hyperparameter tuning
+getParamSet(rf.lrn)
+
+params <- makeParamSet(makeIntegerParam("mtry",lower = 2,upper = 10),makeIntegerParam("nodesize",lower = 10,upper = 50),
+                       makeIntegerParam("ntree",lower = 2,upper = 1000), makeIntegerParam("maxnodes", lower = 2,upper = 500))
+#set optimization technique
+ctrl <- makeTuneControlRandom(maxit = 5L)
+tune <- tuneParams(learner = rf.lrn, task = traintask, 
+                   resampling = rdesc, 
+                   measures = list(mae, mse, rmse), par.set = params, 
+                   control = ctrl, show.info = T)
+tune
+
+rf_windows_evaluation = evaluate_window_size(train_data, validation_data, window_sizes, forecast_horizon, rolling_rf, tune)
+
+best_window_size_rf = window_sizes[which.min(rowSums(rf_windows_evaluation))]
+
+predictions_rf = rolling_rf(test_data, validation_data, best_window_size_rf, forecast_horizon, tune)
+
+# Evaluate performance 
+check_set_y = subset(test_data, select = HENRYHUB) 
+check_set_y = check_set_y$HENRYHUB[(best_window_size_rf + 1):length(test_data$HENRYHUB)]
+
+# return error metrics
+acc_rf = accuracy(replace_zero(predictions_rf), replace_zero(check_set_y))
+
+
+ggplot(data_gas) +
+  geom_line(aes(x = date, y = HENRYHUB, color = "Original")) +
+  geom_line(data = test_data[-(1:best_window_size_rf),], aes(x = date, y = predictions_rf, color = "Forecast")) +
+  scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
+  labs(title = "Random Forest forecast", y = "HENRYHUB (% change)")
+
+#### Random forests ####
 library(randomForest)
 n <- names(data_gas)
 f <- as.formula(paste("HENRYHUB ~", paste(n[!n %in% c("HENRYHUB", "day")], collapse = " + ")))
