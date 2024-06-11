@@ -2,6 +2,7 @@
 
 setwd("C:/Users/billo/OneDrive/Desktop/FAU/Thesis/data/data")
 
+install.packages("mlr") # for hyperparameter tuning
 #### library calls ####
 ssh <- suppressPackageStartupMessages
 ssh(library(timeSeries))
@@ -16,15 +17,16 @@ ssh(library(writexl))
 ssh(library(tidyr))
 ssh(library(ModelMetrics))
 library(ggplot2)
+library(mlr)
 
 source("code/functions.R")
 
 
 #### IMPORT DATA FROM LOCAL TO AVOID RELOADING EVERYTHING EVERYTIME ####
-data_oil <- read_excel("OIL_firstdifferenced.xlsx")
+data_oil <- read_excel("data/OIL_firstdifferenced.xlsx")
 data_oil = drop_na(data_oil)
 
-## train-validation-test split 
+#### train-validation-test split ####
 set.seed(122)
 n = nrow(data_oil)
 train_proportion <- 0.7
@@ -43,66 +45,21 @@ dim(train_data)
 dim(validation_data)
 dim(test_data)
 
-## Benchmark models ##
-accuracy_table= data.frame(
-  col1 = rep(NA, 3) # Placeholder to merge later. Number corresponds to the 7 statistics well include
-)
 
-# ARIMA
-# Define rolling window size
+#### ARIMA ####
 
-# Iterate over the rolling window (VALIDATION)####
-# arima_model <- auto.arima(train_data$WTI)
-# summary(arima_model)
-# rolling_windows(train_data, validation_data, auto.arima, 10)
-
-# # Train
-# arima_model <- auto.arima(train_data$WTI)
-# 
-# # Validate
-# validation_forecast_arima <- predict(arima_model, newdata = validation_data)
-# validation_forecast_arima$mean
-# validation_accuracy_arima <- accuracy(validation_forecast_arima, validation_data$WTI[1:10])
-# print(validation_accuracy_arima)
-
-# Iterate over the rolling window (TESTING)####
-
-# predictions_arima = rolling_windows(train_data, test_data, auto.arima, 50)
-
-# window_size = 10
-# SELECTS THE BEST MODEL
-model_arima = auto.arima(train_data$WTI)
-window_sizes <- seq(24, 60, by = 1)  # Example window sizes
+## training
+model_arima = auto.arima(train_data$WTI) # automatically selects the best model
+window_sizes <- seq(24, 60, by = 1)  # range of window sizes to try out
 forecast_horizon <- 1  # Number of steps to forecast ahead
 
-rolling_arima(train_data, 10, 1)
+## validation
+# selecting the best performing window size
 arima_windows_evaluation = evaluate_window_size(train_data, validation_data, window_sizes, forecast_horizon, rolling_arima, model = model_arima)
+best_window_size_arima = window_sizes[which.min(rowSums(arima_windows_evaluation))]
 
-
-for (i in 1:n_windows) {
-  # Define training and validation data
-  # if (i > 7){
-  #   browser()
-  #
-  # }
-  train_subset <- train_data[i:(i + window_size - 1), ]
-  check_subset <- train_data[(i + window_size), ] # test or train
-
-  model <- arima(train_subset$WTI, order = c(3, 0, 0))
-
-  # Make predictions
-  check_set_x = subset(check_subset, select = -WTI)
-  new_prediction <- predict(model, newdata = check_set_x)
-  class(new_prediction)
-  predictions = c(predictions, extract_forecast(new_prediction))
-}
-predictions_arima = predictions
-
-# return error metrics
-
-best_window_size_arima = window_sizes[which.min(rowSums(rf_windows_evaluation))]
-
-predictions_arima = rolling_arima(test_data, best_window_size_arima, forecast_horizon, order = c(3, 0, 0))
+## testing
+predictions_arima = rolling_arima(test_data, best_window_size_arima, forecast_horizon, model_arima)
 # Evaluate performance 
 check_set_y = subset(test_data, select = WTI) 
 check_set_y = check_set_y$WTI[(best_window_size_arima + 1):length(test_data$WTI)]
@@ -115,28 +72,27 @@ ggplot(data_oil) +
   labs(title = "ARIMA forecast", y = "WTI (% change)")
 
 
-# # Testing
-# test_forecast_arima <- predict(arima_model, newdata = test_data)
-# test_accuracy_arima <- accuracy(test_forecast, test_data$WTI[1:10])
-# print(test_accuracy_arima)
 
-# Exponential Smoothing
 
-# exp_smooth_model <- ets(train_data$WTI)
-# summary(exp_smooth_model)
-# # Validate
-# 
-# rolling_windows(train_data, validation_data, exp_smooth_model , 10)
+#### EXPONENTIAL SMOOTHING ####
 
-# Testing
-model_ets = ets(train_data$WTI)
-predictions_ets = rolling_windows(train_data, test_data, ets, 50)
+## training
+model_ets = ets(train_data$WTI) # also automatically selects the best alpha parameter
 
-ets_windows_evaluation = evaluate_window_size(validation_data, window_sizes, forecast_horizon, rolling_ets, model_ets)
+## validation
+ets_windows_evaluation = evaluate_window_size(train_data, validation_data, window_sizes, forecast_horizon, rolling_ets, model_ets)
 
-best_window_size_ets = window_sizes[which.min(rowSums(rf_windows_evaluation))]
+best_window_size_ets = window_sizes[which.min(rowSums(ets_windows_evaluation))]
 
-predictions_ets = rolling_ets(test_data, best_window_size_ets, forecast_horizon)
+## testing
+predictions_ets = rolling_ets(test_data, best_window_size_ets, forecast_horizon, model_ets)
+
+# Evaluate performance 
+check_set_y = check_set_y$WTI[(best_window_size_ets + 1):length(test_data$WTI)]
+
+# return error metrics
+acc_ets = accuracy(replace_zero(predictions_ets), replace_zero(check_set_y))
+
 
 ggplot(data_oil) +
   geom_line(aes(x = date, y = WTI, color = "Original")) +
@@ -145,55 +101,29 @@ ggplot(data_oil) +
   labs(title = "Exponential Smoothing forecast", y = "WTI (% change)")
 
 
-# window_size = 10
-# n_windows = nrow(test_data) - window_size
-# predictions = c()
-# for (i in 1:n_windows) {
-#   # Define training and validation data
-#   # browser()
-#   train_subset <- train_data[i:(i + window_size - 1), ]
-#   check_subset <- train_data[(i + window_size), ] # test or train
-#   
-#   model <- ets(train_subset$WTI)
-#   
-#   # Make predictions
-#   check_set_x = subset(check_subset, select = -WTI)
-#   new_prediction <- predict(model, newdata = check_set_x)
-#   class(new_prediction)
-#   predictions = c(predictions, extract_forecast(new_prediction))
-# }
-# 
-# extract_forecast(new_prediction)
 
-# Evaluate performance 
-check_set_y = subset(test_data, select = WTI) 
-check_set_y = check_set_y$WTI[(window_size + 1):length(test_data$WTI)]
-
-# return error metrics
-acc_ets = accuracy(na.omit(predictions_ets), na.omit(check_set_y))
-
-# No change
+#### NO CHANGE FORECAST ####
 
 no_change_forecast <- function(observations){
   most_recent_value = observations[length(observations)]
   nc_vector = rep(most_recent_value, length(observations))
   
-  accuracy(nc_vector, observations)
+  accuracy(replace_zero(nc_vector), replace_zero(observations))
 }
 
 acc_no_change = no_change_forecast(na.omit(data_oil$WTI))
 
-## ML Models ##
 
 
-# Random forests 
+
+#### RANDOM FORESTS ####
 library(randomForest)
+library(mlr)
+
 n <- names(data_oil)
 f <- as.formula(paste("WTI ~", paste(n[!n %in% c("WTI", "date")], collapse = " + ")))
 
 # single estimation
-install.packages("mlr") # for hyperparameter tuning
-library(mlr)
 mtry = floor(length(names(data_oil))/3) # for regression problems
 rf = randomForest(f, data = data_oil, mtry = mtry)
 rf
@@ -201,7 +131,7 @@ summary(rf)
 importance(rf)
 varImpPlot(rf)
 
-#create a task
+# using the tools from mlr package to validate the model
 train_data_rf= train_data
 validation_data_rf= validation_data
 test_data_rf = test_data
@@ -229,11 +159,11 @@ tune <- tuneParams(learner = rf.lrn, task = traintask,
                    measures = list(mae, mse, rmse), par.set = params, 
                    control = ctrl, show.info = T)
 tune
-rf_windows_evaluation = evaluate_window_size(validation_data, window_sizes, forecast_horizon, rolling_rf, tune)
+rf_windows_evaluation = evaluate_window_size(tr_data = train_data, val_data=validation_data, window_sizes = window_sizes, forecast_horizon = forecast_horizon, func = rolling_rf, model = tune)
 
 best_window_size_rf = best_window_size_ets = window_sizes[which.min(rowSums(rf_windows_evaluation))]
 
-predictions_rf = rolling_rf(test_data, best_window_size_rf, forecast_horizon, tune)
+predictions_rf = rolling_rf(data = test_data, window_size = best_window_size_rf, forecast_horizon = forecast_horizon, model = tune)
 
 
 # Evaluate performance 
@@ -250,19 +180,6 @@ ggplot(data_oil) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "Random Forest forecast", y = "WTI (% change)")
 
-# NNtrain <- NNdata[1:n_train, ]
-# NNvalidation <- NNdata[(n_train + 1):(n_train + n_validation), ]
-# NNtest <- NNdata[(n_train + n_validation + 1):n, ]
-# # preprocessing
-# mean = apply(NNtrain, 2, mean) # 2 parameter indicates that function will be applied column-wise
-# std = apply(NNtrain, 2, sd)
-# NNdata <- scale(NNdata, center = mean, scale = std)
-# 
-# accuracy_table = rbind(acc_arima, acc_ets, acc_no_change, acc_rf)
-# rownames(accuracy_table) = c("ARIMA", "ETS", "No change", "Random Forest")
-# 
-# create_table_from_df(accuracy_table, "Accuracy measures Benchmark vs ML models - OIL")
-`
-# pakcage RNN`
+
 
 

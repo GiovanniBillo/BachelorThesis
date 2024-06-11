@@ -46,11 +46,11 @@ stats_gas = summary_statistics(data_gas[values_gas], "GAS", "(Pre-differencing)"
 apply_first_differencing(data_oil, stats_oil, "OIL")
 apply_first_differencing(data_gas, stats_gas, "GAS")
 
-data_oil_fd <- read_excel("OIL_firstdifferenced.xlsx")
-data_oil_fd = drop_na(data_gas_fd)
+data_oil_fd <- read_excel("data/OIL_firstdifferenced.xlsx")
+data_oil_fd = drop_na(data_oil_fd)
 stats_oil_pd = summary_statistics(data_oil_fd[values_oil], "OIL", "(Post-differencing)")
 
-data_gas_fd <- read_excel("GAS_firstdifferenced.xlsx")
+data_gas_fd <- read_excel("data/GAS_firstdifferenced.xlsx")
 data_gas_fd = drop_na(data_gas_fd)
 stats_gas_pd = summary_statistics(data_gas_fd[values_gas], "GAS", "(Post-differencing)")
 
