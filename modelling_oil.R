@@ -131,7 +131,7 @@ summary(rf)
 importance(rf)
 varImpPlot(rf)
 
-# using the tools from mlr package to validate the model
+#### using the tools from mlr package to validate the model ####
 train_data_rf= train_data
 validation_data_rf= validation_data
 test_data_rf = test_data
@@ -161,7 +161,7 @@ tune <- tuneParams(learner = rf.lrn, task = traintask,
 tune
 rf_windows_evaluation = evaluate_window_size(tr_data = train_data, val_data=validation_data, window_sizes = window_sizes, forecast_horizon = forecast_horizon, func = rolling_rf, model = tune)
 
-best_window_size_rf = best_window_size_ets = window_sizes[which.min(rowSums(rf_windows_evaluation))]
+best_window_size_rf = window_sizes[which.min(rowSums(rf_windows_evaluation))]
 
 predictions_rf = rolling_rf(data = test_data, window_size = best_window_size_rf, forecast_horizon = forecast_horizon, model = tune)
 
@@ -178,8 +178,78 @@ ggplot(data_oil) +
   geom_line(aes(x = date, y = WTI, color = "Original")) +
   geom_line(data = test_data[-(1:best_window_size_rf),], aes(x = date, y = predictions_rf, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
+  labs(title = "Random Forest forecast (various hyperparameters tuning)", y = "WTI (% change)")
+
+#### using caret (reference: https://machinelearningmastery.com/tune-machine-learning-algorithms-in-r/) ####
+
+library(randomForest)
+library(mlbench)
+library(caret)
+
+
+# Create model with default paramters
+# Determine the split point
+split_point <- floor(0.8 * nrow(data_oil))
+
+# Assign the first 80% to the training set and the remaining 20% to the test set
+
+data_oil$train <- c(rep(TRUE, split_point), rep(FALSE, nrow(data_oil) - split_point))
+istrain <- data_oil$train
+data_oil$train <- NULL
+
+control <- trainControl(method="repeatedcv", number=10, repeats=3)
+seed <- 7
+metric <- "RMSE"
+set.seed(seed)
+mtry <- sqrt(ncol(x))
+tunegrid <- expand.grid(.mtry=mtry)
+rf_default <- train(WTI ~., data=data_oil, method="rf", metric=metric, tuneGrid=tunegrid, trControl=control)
+print(rf_default)
+
+
+predictions_rf2 <- predict(rf_default, newdata =  validation_data)
+
+ggplot(data_oil) +
+  geom_line(aes(x = date, y = WTI, color = "Original")) +
+  geom_line(data = test_data[-(1:125),], aes(x = date, y = predictions_rf2, color = "Forecast")) +
+  scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "Random Forest forecast", y = "WTI (% change)")
 
+#### using random Search ####
+control <- trainControl(method="repeatedcv", number=10, repeats=3, search="random")
+set.seed(seed)
+mtry <- sqrt(ncol(x))
+rf_random <- train(WTI~., data=data_oil, method="rf", metric=metric, tuneLength=15, trControl=control, tunegrid = expand.grid(mtry = 1:num_features))
+print(rf_random)
+plot(rf_random)
+
+rf_random$modelType
 
 
+#### using grid search (reference: https://www.projectpro.io/recipes/tune-hyper-parameters-grid-search-r)####
+num_features = ncol(data_oil) - 1 # removing target and date
 
+# specifying the CV technique which will be passed into the train() function later and number parameter is the "k" in K-fold cross validation
+train_control = trainControl(method = "cv", number = 5, search = "grid")
+
+set.seed(50)
+# Customsing the tuning grid
+rfGrid <-  expand.grid(mtry = (1:num_features)) # QUESTION: WHY IS THE RMSE DECREASING AND R SQUARED INCREASING AS I INCLUDE MORE VARIABLES? LIKE THIS THE RANDOM FOREST WILL COLLAPSE INTO A NORMAL TREE MODEL.
+
+# training a random forest tree model while tuning parameters
+model = train(WTI~., data = data_oil[istrain,], method = "rf", trControl = train_control, tuneGrid = rfGrid)
+
+# summarising the results
+print(model)
+
+rf_windows_evaluation = evaluate_window_size(val_data = validation_data, window_sizes = window_sizes, forecast_horizon = forecast_horizon, func = rolling_rf, model = model_gridsearch)
+best_window_size_rf = window_sizes[which.min(rowSums(rf_windows_evaluation))]
+predictions_rf = rolling_rf(data = test_data, window_size = best_window_size_rf, forecast_horizon = forecast_horizon, model = model_gridsearch)
+
+ggplot(data_oil) +
+  geom_line(aes(x = date, y = WTI, color = "Original")) +
+  geom_line(data = test_data[-(1:best_window_size_rf),], aes(x = date, y = predictions_rf, color = "Forecast")) +
+  scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
+  labs(title = "Random Forest forecast (Grid search)", y = "WTI (% change)")
+
+# QUESTION: SAME 

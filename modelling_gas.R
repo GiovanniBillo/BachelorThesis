@@ -11,7 +11,7 @@ ssh(library(rugarch))
 ssh(library(ModelMetrics))
 ssh(library(keras)) # neural networks
 
-source("functions.R")
+source("code/functions.R")
 
 
 #### IMPORT DATA FROM LOCAL TO AVOID RELOADING EVERYTHING EVERYTIME ####
