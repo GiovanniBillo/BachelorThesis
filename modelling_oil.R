@@ -165,7 +165,6 @@ best_window_size_rf = window_sizes[which.min(rowSums(rf_windows_evaluation))]
 
 predictions_rf = rolling_rf(data = test_data, window_size = best_window_size_rf, forecast_horizon = forecast_horizon, model = tune)
 
-
 # Evaluate performance 
 check_set_y = subset(test_data, select = WTI) 
 check_set_y = check_set_y$WTI[(best_window_size_rf + 1):length(test_data$WTI)]
@@ -186,8 +185,6 @@ library(randomForest)
 library(mlbench)
 library(caret)
 
-
-# Create model with default paramters
 # Determine the split point
 split_point <- floor(0.8 * nrow(data_oil))
 
@@ -205,7 +202,6 @@ mtry <- sqrt(ncol(x))
 tunegrid <- expand.grid(.mtry=mtry)
 rf_default <- train(WTI ~., data=data_oil, method="rf", metric=metric, tuneGrid=tunegrid, trControl=control)
 print(rf_default)
-
 
 predictions_rf2 <- predict(rf_default, newdata =  validation_data)
 
@@ -252,4 +248,4 @@ ggplot(data_oil) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "Random Forest forecast (Grid search)", y = "WTI (% change)")
 
-# QUESTION: SAME 
+# QUESTION: THE RESULT IS THE SAME IN ALL CASES, WHAT COULD BE CAUSING THIS? PERHAPS ALSO RANDOM FOREST DATA NEEDS RESCALING AFTER BEING FITTED TO THE MODEL

@@ -1,4 +1,5 @@
 setwd("C:/Users/billo/anaconda3/envs/Thesis")
+## reference: https://www.kaggle.com/code/rtatman/beginner-s-intro-to-rnn-s-in-r
 
 ### only damn conda installation working
 install.packages("remotes")
