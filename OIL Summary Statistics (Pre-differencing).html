@@ -281,108 +281,135 @@ border: 0;
 </head>
 <body>
 <table class="table table-striped" style="width: auto !important; margin-left: auto; margin-right: auto;">
-<caption>GAS Summary Statistics (Pre-differencing)</caption>
+<caption>OIL Summary Statistics (Pre-differencing)</caption>
  <thead>
   <tr>
    <th style="text-align:left;">   </th>
-   <th style="text-align:right;"> HENRYHUB </th>
-   <th style="text-align:right;"> heating_oil </th>
+   <th style="text-align:right;"> WTI </th>
+   <th style="text-align:right;"> brent </th>
+   <th style="text-align:right;"> dj </th>
    <th style="text-align:right;"> sp </th>
-   <th style="text-align:right;"> wti </th>
-   <th style="text-align:right;"> gas_future </th>
-   <th style="text-align:right;"> gas_supply_gr </th>
-   <th style="text-align:right;"> gas_demand_gr </th>
+   <th style="text-align:right;"> brent_futures </th>
+   <th style="text-align:right;"> wti_futures </th>
+   <th style="text-align:right;"> dubai_futures </th>
+   <th style="text-align:right;"> daily_dubai_growth_rate </th>
    <th style="text-align:right;"> GPRD </th>
+   <th style="text-align:right;"> oil_demand_gr </th>
+   <th style="text-align:right;"> oil_supply_gr </th>
   </tr>
  </thead>
 <tbody>
   <tr>
    <td style="text-align:left;"> min </td>
-   <td style="text-align:right;"> 1.330000 </td>
-   <td style="text-align:right;"> 0.5620000 </td>
-   <td style="text-align:right;"> 2237.4000000 </td>
-   <td style="text-align:right;"> -36.9800000 </td>
-   <td style="text-align:right;"> 1.4820000 </td>
-   <td style="text-align:right;"> 2.493267e+06 </td>
-   <td style="text-align:right;"> 8.360490e+05 </td>
-   <td style="text-align:right;"> 9.490000 </td>
+   <td style="text-align:right;"> 26.1900000 </td>
+   <td style="text-align:right;"> 26.0100000 </td>
+   <td style="text-align:right;"> 15660.180000 </td>
+   <td style="text-align:right;"> 1829.0800000 </td>
+   <td style="text-align:right;"> 27.8800000 </td>
+   <td style="text-align:right;"> 26.2100000 </td>
+   <td style="text-align:right;"> 25.5700000 </td>
+   <td style="text-align:right;"> -24.3285835 </td>
+   <td style="text-align:right;"> 9.4900000 </td>
+   <td style="text-align:right;"> -12.3782897 </td>
+   <td style="text-align:right;"> -7.1538571 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> max </td>
-   <td style="text-align:right;"> 23.860000 </td>
-   <td style="text-align:right;"> 2.4510000 </td>
-   <td style="text-align:right;"> 4793.0600000 </td>
-   <td style="text-align:right;"> 85.6400000 </td>
-   <td style="text-align:right;"> 6.3120000 </td>
-   <td style="text-align:right;"> 3.719546e+06 </td>
-   <td style="text-align:right;"> 2.722049e+06 </td>
-   <td style="text-align:right;"> 413.460000 </td>
+   <td style="text-align:right;"> 77.4100000 </td>
+   <td style="text-align:right;"> 86.0700000 </td>
+   <td style="text-align:right;"> 29348.100000 </td>
+   <td style="text-align:right;"> 3329.6200000 </td>
+   <td style="text-align:right;"> 86.2900000 </td>
+   <td style="text-align:right;"> 76.4100000 </td>
+   <td style="text-align:right;"> 84.1200000 </td>
+   <td style="text-align:right;"> 16.8593120 </td>
+   <td style="text-align:right;"> 413.4600000 </td>
+   <td style="text-align:right;"> 9.7222332 </td>
+   <td style="text-align:right;"> 6.9288506 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> mean </td>
-   <td style="text-align:right;"> 2.924066 </td>
-   <td style="text-align:right;"> 1.7333545 </td>
-   <td style="text-align:right;"> 3121.2516359 </td>
-   <td style="text-align:right;"> 56.0529030 </td>
-   <td style="text-align:right;"> 2.8910281 </td>
-   <td style="text-align:right;"> 3.232779e+06 </td>
-   <td style="text-align:right;"> 1.458405e+06 </td>
-   <td style="text-align:right;"> 103.028621 </td>
+   <td style="text-align:right;"> 53.1256637 </td>
+   <td style="text-align:right;"> 57.3836766 </td>
+   <td style="text-align:right;"> 21916.385961 </td>
+   <td style="text-align:right;"> 2472.7887852 </td>
+   <td style="text-align:right;"> 58.0943765 </td>
+   <td style="text-align:right;"> 53.1821561 </td>
+   <td style="text-align:right;"> 55.9572245 </td>
+   <td style="text-align:right;"> 0.1771087 </td>
+   <td style="text-align:right;"> 111.1130088 </td>
+   <td style="text-align:right;"> 0.1099916 </td>
+   <td style="text-align:right;"> 0.5215574 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> sd </td>
-   <td style="text-align:right;"> 1.057306 </td>
-   <td style="text-align:right;"> 0.3720751 </td>
-   <td style="text-align:right;"> 664.0405223 </td>
-   <td style="text-align:right;"> 12.8231072 </td>
-   <td style="text-align:right;"> 0.7818201 </td>
-   <td style="text-align:right;"> 2.973306e+05 </td>
-   <td style="text-align:right;"> 6.029263e+05 </td>
-   <td style="text-align:right;"> 42.900720 </td>
+   <td style="text-align:right;"> 9.4552361 </td>
+   <td style="text-align:right;"> 11.5614210 </td>
+   <td style="text-align:right;"> 3795.015076 </td>
+   <td style="text-align:right;"> 369.0815287 </td>
+   <td style="text-align:right;"> 11.1436643 </td>
+   <td style="text-align:right;"> 9.3546357 </td>
+   <td style="text-align:right;"> 11.6802102 </td>
+   <td style="text-align:right;"> 8.8738153 </td>
+   <td style="text-align:right;"> 43.6682179 </td>
+   <td style="text-align:right;"> 3.9504762 </td>
+   <td style="text-align:right;"> 2.8984526 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> ADF </td>
-   <td style="text-align:right;"> -4.463372 </td>
-   <td style="text-align:right;"> -1.5430653 </td>
-   <td style="text-align:right;"> -1.5955267 </td>
-   <td style="text-align:right;"> -1.9507335 </td>
-   <td style="text-align:right;"> -2.3288265 </td>
-   <td style="text-align:right;"> -4.451468e+00 </td>
-   <td style="text-align:right;"> -2.532500e+00 </td>
-   <td style="text-align:right;"> -8.120920 </td>
+   <td style="text-align:right;"> -2.6015313 </td>
+   <td style="text-align:right;"> -2.4918287 </td>
+   <td style="text-align:right;"> -3.061730 </td>
+   <td style="text-align:right;"> -2.9468448 </td>
+   <td style="text-align:right;"> -2.4346898 </td>
+   <td style="text-align:right;"> -2.5835760 </td>
+   <td style="text-align:right;"> -2.2751570 </td>
+   <td style="text-align:right;"> -5.4331260 </td>
+   <td style="text-align:right;"> -7.6926597 </td>
+   <td style="text-align:right;"> -9.6224011 </td>
+   <td style="text-align:right;"> -8.5145719 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> pvalue </td>
-   <td style="text-align:right;"> 0.010000 </td>
-   <td style="text-align:right;"> 0.7717399 </td>
-   <td style="text-align:right;"> 0.7495323 </td>
-   <td style="text-align:right;"> 0.5991683 </td>
-   <td style="text-align:right;"> 0.4391162 </td>
-   <td style="text-align:right;"> 1.000000e-02 </td>
-   <td style="text-align:right;"> 3.528983e-01 </td>
-   <td style="text-align:right;"> 0.010000 </td>
+   <td style="text-align:right;"> 0.3236765 </td>
+   <td style="text-align:right;"> 0.3701152 </td>
+   <td style="text-align:right;"> 0.128868 </td>
+   <td style="text-align:right;"> 0.1775006 </td>
+   <td style="text-align:right;"> 0.3943029 </td>
+   <td style="text-align:right;"> 0.3312772 </td>
+   <td style="text-align:right;"> 0.4618353 </td>
+   <td style="text-align:right;"> 0.0100000 </td>
+   <td style="text-align:right;"> 0.0100000 </td>
+   <td style="text-align:right;"> 0.0100000 </td>
+   <td style="text-align:right;"> 0.0100000 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> JB </td>
-   <td style="text-align:right;"> 841961.459600 </td>
-   <td style="text-align:right;"> 84.7137418 </td>
-   <td style="text-align:right;"> 194.7314318 </td>
-   <td style="text-align:right;"> 496.5754841 </td>
-   <td style="text-align:right;"> 882.3962454 </td>
-   <td style="text-align:right;"> 1.040267e+02 </td>
-   <td style="text-align:right;"> 1.366114e+02 </td>
-   <td style="text-align:right;"> 1401.018233 </td>
+   <td style="text-align:right;"> 0.7326240 </td>
+   <td style="text-align:right;"> 11.7838439 </td>
+   <td style="text-align:right;"> 112.854457 </td>
+   <td style="text-align:right;"> 79.1591479 </td>
+   <td style="text-align:right;"> 8.0562366 </td>
+   <td style="text-align:right;"> 1.0460354 </td>
+   <td style="text-align:right;"> 15.3335248 </td>
+   <td style="text-align:right;"> 127.6949532 </td>
+   <td style="text-align:right;"> 1715.5593942 </td>
+   <td style="text-align:right;"> 36.8248836 </td>
+   <td style="text-align:right;"> 0.3956706 </td>
   </tr>
   <tr>
    <td style="text-align:left;"> KPSS </td>
-   <td style="text-align:right;"> 1.588549 </td>
-   <td style="text-align:right;"> 1.5822049 </td>
-   <td style="text-align:right;"> 12.8351877 </td>
-   <td style="text-align:right;"> 1.3350831 </td>
-   <td style="text-align:right;"> 1.9957796 </td>
-   <td style="text-align:right;"> 1.162082e+01 </td>
-   <td style="text-align:right;"> 1.803454e-01 </td>
-   <td style="text-align:right;"> 3.809573 </td>
+   <td style="text-align:right;"> 6.8232648 </td>
+   <td style="text-align:right;"> 8.0545428 </td>
+   <td style="text-align:right;"> 14.981427 </td>
+   <td style="text-align:right;"> 14.7097970 </td>
+   <td style="text-align:right;"> 7.5947024 </td>
+   <td style="text-align:right;"> 6.8180429 </td>
+   <td style="text-align:right;"> 8.1527451 </td>
+   <td style="text-align:right;"> 0.2213908 </td>
+   <td style="text-align:right;"> 0.1477217 </td>
+   <td style="text-align:right;"> 0.0264206 </td>
+   <td style="text-align:right;"> 0.7699440 </td>
   </tr>
 </tbody>
 </table>
