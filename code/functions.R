@@ -349,14 +349,15 @@ get_params <- function(model){
   }else if((class(model)[1] == "ets")){
     params = model$par["alpha"]
     return(params)
-  }else if(class(model)[1] %in% c("TuneResult", "OptResult")){
+  }else if(class(model)[1] %in% c("TuneResult", "OptResult")){ 
     params= c(model$x["mtry"], model$x["nodesize"], model$x["ntree"], model$x["maxnodes"])
     names(params) <- c("mtry", "nodesize", "ntree", "maxnodes")
     return(params)
+  }else if(class(model)[1] %in% c("train", "train.formula")){ # random forest grid search
+    return(model$bestTune$mtry)
   }else{
     print("Error: unknown model class. Can't extract parameters")
   }
-  
 }
 
 rolling_arima <- function(data, window_size, forecast_horizon, model) {
@@ -423,8 +424,12 @@ rolling_ets <- function(data, window_size, forecast_horizon, model) {
   return(forecasts)
 }
 
+# QUESTION: should I use just validation data in the rolling windows where I am reestimating the random forest
+# or would it be better also given the short length of the dataset to include training data in this step and then
+# use the validation data in the predict function as newdata parameter?
+
 rolling_rf <- function(tr_data = NULL, data, window_size, forecast_horizon, model) {
-  browser()
+  # browser()
   n <- nrow(data)
   forecasts <- numeric(n - window_size - forecast_horizon + 1)
   
@@ -436,9 +441,10 @@ rolling_rf <- function(tr_data = NULL, data, window_size, forecast_horizon, mode
   for (i in 1:(n - window_size - forecast_horizon + 1)) {
     # browser()
     window_data <- data[i:(i + window_size - 1), ]
-    params = get_params(model)
-    fit <- randomForest(f, data = data, mtry = params$mtry,
-                        nodesize = params$nodesize, ntree = params$ntree, maxnodes = params$maxnodes)
+    # params = get_params(model)
+    # fit <- randomForest(f, data = data, mtry = params$mtry,
+    #                     nodesize = params$nodesize, ntree = params$ntree, maxnodes = params$maxnodes)
+    fit <- randomForest(f, data = data, mtry = get_params(model))
     # fit <- randomForest(f, data = tr_data, mtry = mtry)
     
     forecast <- predict(fit, n.ahead = forecast_horizon) # newdata = data[, -c(1, 2)# removing target and date column before giving the predictor variables for the new datapoint
@@ -448,6 +454,38 @@ rolling_rf <- function(tr_data = NULL, data, window_size, forecast_horizon, mode
   
   return(forecasts)
 }
+
+rolling_rnn <- function(valdata, window_size, forecast_horizon, model) {
+  # browser()
+  # Check if valdata is a 3D array
+  if (length(dim(valdata)) != 3) {
+    stop("valdata must be a 3D array")
+  }
+  
+  if (model == '<pointer: 0x0>'){ # abort if model is NULL
+    stop("Model is a NULL pointer")
+  } 
+  
+  n <- dim(valdata)[1]
+  num_features <- dim(valdata)[3]
+  forecasts <- numeric(n - window_size - forecast_horizon + 1)
+  
+  for (i in 1:(n - window_size - forecast_horizon + 1)) {
+    window_data <- valdata[i:(i + window_size - 1), ,]
+    
+    # Reshape window_data for Keras model prediction
+    x_new <- array(window_data, dim = c(1, window_size, num_features))
+    
+    # Make prediction using the Keras model
+    forecast <- predict(model, x_new)
+    
+    # Extract the forecast value (assuming forecast returns a numeric value)
+    forecasts[i] <- forecast[1]
+  }
+  
+  return(forecasts)
+}
+
 
 evaluate_window_size <- function(tr_data = NULL, val_data, window_sizes, forecast_horizon, func, model) {
   # browser()
