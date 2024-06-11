@@ -1,33 +1,19 @@
 setwd("C:/Users/billo/anaconda3/envs/Thesis")
 
+### only damn conda installation working
 install.packages("remotes")
 remotes::install_github(sprintf("rstudio/%s", c("reticulate", "tensorflow", "keras")))
 reticulate::miniconda_uninstall() # start with a blank slate
 reticulate::install_miniconda()
 keras::install_keras()
 
-library(tensorflow)
-install_tensorflow(method = "conda", conda = "C:/Users/billo/anaconda3/_conda.exe")
+# install_tensorflow(method = "conda", conda = "C:/Users/billo/anaconda3/_conda.exe")
 
-library(keras)
-library(tidyverse)
-library(caret)
+
 #### library calls ####
-ssh <- suppressPackageStartupMessages
-ssh(library(timeSeries))
-ssh(library(tseries))
-ssh(library(aTSA))
-ssh(library(forecast))
-ssh(library(rugarch))
-ssh(library(ModelMetrics))
-ssh(library(keras3)) # neural networks
-ssh(library(readxl))
-ssh(library(writexl))
-ssh(library(tidyr))
-ssh(library(ModelMetrics))
-library(ggplot2)
-library(ISLR2)
-
+library(tensorflow)
+library(keras)
+library(caret)
 source("functions.R")
 
 # Recurrent Neural Network
@@ -41,8 +27,9 @@ data_oil$train <- ifelse(row_number(data_oil) %in% train_index$Resample1, TRUE, 
 istrain = data_oil$train
 data_oil$train <- NULL
 #### try 2 ####
-xdata = data.matrix(data_oil)
-nyse = NYSE
+noday = which(names(data_oil) %in% c("day", "date"))
+xdata = data.matrix(data_oil[-noday])
+# nyse = NYSE
 xdata = scale(xdata)
 
 lagm <- function (x , k = 1) {
@@ -70,12 +57,33 @@ arpred <- predict(arfit, arframe[!istrain, ])
 V0 <- var(arframe [!istrain , "wti"])
 1 - mean (( arpred - arframe [! istrain , "wti"])^2) / V0
 
+# including day of the month
+arframed <- data.frame(day = data_oil[-(1:5), noday], arframe)
+arfitd <- lm(wti ~ ., data = arframed[istrain, ])
+arpredd <- predict(arfit, arframed[!istrain, ])
+1 - mean (( arpredd - arframe [! istrain , "wti"])^2) / V0
+
+
 n <- nrow ( arframe )
 xrnn <- data.matrix ( arframe [ , -1])
-xrnn <- array ( xrnn , c(n , 3, 5) )
+xrnn <- array ( xrnn , c(n , 5, 5) )
 xrnn <- xrnn [, , 5:1]
 xrnn <- aperm ( xrnn , c(1 , 3, 2) )
 dim ( xrnn )
+
+
+model <- keras_model_sequential() %>% 
+  layer_simple_rnn(units = 12, 
+                   input_shape = list(5, 5), 
+                   dropout = 0.1, recurrent_dropout = 0.1) %>% 
+  layer_dense((units = 1))
+
+history = model %>% fit(
+  xrnn[istrain,, ], arframe[istrain, "wti"],
+  batch_size = 64, epochs = 200,
+  validation_data = 
+    list(xrnn[!istrain,, ], arframe[!istrain, "wti"]))
+
 #### try 1 ####
 # set some parameters for our model
 max_len <- 12 # the number of previous examples we'll look at
@@ -115,6 +123,7 @@ y <- wti_matrix[,ncol(wti_matrix)]
 training_index <- createDataPartition(y, p = .9, 
                                       list = FALSE, 
                                       times = 1)
+
 
 # training data
 X_train <- array(X[training_index,], dim = c(length(training_index), max_len, 1))

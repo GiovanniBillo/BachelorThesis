@@ -15,22 +15,22 @@ install.packages("keras")
 
 #### library calls ####
 ssh <- suppressPackageStartupMessages
-library(OECD)
-library(FredR)
-library(eia)
-library(pipeR)
-library(dplyr)
-library(readr)
-library(tidyr)
-library(ggplot2)
-library(patchwork)
-library(tseries) # adf test
-library(kableExtra) # save df as image
-library(forecast)
-library(far)
+ssh(library(OECD))
+ssh(library(FredR))
+ssh(library(eia))
+ssh(library(pipeR))
+ssh(library(dplyr))
+ssh(library(readr))
+ssh(library(tidyr))
+ssh(library(ggplot2))
+ssh(library(patchwork))
+ssh(library(tseries)) # adf test
+ssh(library(kableExtra)) # save df as image
+ssh(library(forecast))
+ssh(library(far))
+ssh(library(writexl))
 
-
-library(writexl)
+source("code/functions.R")
 
 #### setup for EIA data ####
 eia_key = "VXgY9PMtxMquGidojwzaA20dWBXV2Na3fhLlD6be"
@@ -42,7 +42,7 @@ START_DATE_MONTHLY <- "2017-01"
 END_DATE_MONTHLY <- "2022-01"
 
 START_DATE_DAILY = as.Date("2017-01-01")
-END_DATE_DAILY = as.Date("2022-01-01")
+END_DATE_DAILY = as.Date("2022-01-01") # eia has no supply/demand data after the end of 2022
 
 #### other functions ####
 # assign_day_month <-function(dates_vector){
@@ -170,10 +170,10 @@ HENRYHUB <- fred$series.observations(series_id = 'DHHNGSP')
 # explanatory variables
 heating_oil <- fred$series.observations(series_id = 'DHOILNYH')
 wti <- fred$series.observations(series_id = 'DCOILWTICO')
-dj <- fred$series.observations(series_id = 'DJIA')
+# dj <- fred$series.observations(series_id = 'DJIA') # not necessary as follows sp
 sp <- fred$series.observations(series_id = 'SP500')
 
-series_fred = list(HENRYHUB= HENRYHUB, heating_oil = heating_oil, dj = dj, sp = sp, wti= wti)
+series_fred = list(HENRYHUB= HENRYHUB, heating_oil = heating_oil, sp = sp, wti= wti)
 
 # filtering and renaming the series from FRED
 for (i in seq_along(series_fred)){
@@ -191,7 +191,7 @@ for (i in seq_along(series_fred)){
 }
 
 #### Local Data ####
-natural_gas_futures <- read_csv("gas data/Natural Gas Futures Historical Data.csv")
+natural_gas_futures <- read_csv("data/gas data/Natural Gas Futures Historical Data.csv")
 natural_gas_futures$Date = as.Date(natural_gas_futures$Date, format="%m/%d/%Y") 
 natural_gas_futures = natural_gas_futures %>% select(
       Date,
@@ -202,6 +202,8 @@ natural_gas_futures = natural_gas_futures %>% select(
 
 
 #### EIA DATA ####
+# facets are necessary for the api request
+# they subset the search for specific parameters
 facets_gas_process = list(
     "FGC",
     "FGG",
@@ -213,47 +215,18 @@ facets_gas_series = list(
     "N9012US2",
     "NGM_EPG0_FGC_NUS_MMCF",
     "NGM_EPG0_FGS_NUS_MMCF")
-facets_states = list(            "N3010AL2",
-                                 "N3010AR2",
-                                 "N3010AZ2",
-                                 "N3010CA2",
-                                 "N3010CO2",
-                                 "N3010CT2",
-                                 "N3010DC2",
-                                 "N3010FL2",
-                                 "N3010GA2",
-                                 "N3010IA2",
-                                 "N3010ID2",
-                                 "N3010IL2",
-                                 "N3010IN2",
-                                 "N3010KS2",
-                                 "N3010KY2",
-                                 "N3010LA2",
-                                 "N3010MA2",
-                                 "N3010MD2",
-                                 "N3010MI2",
-                                 "N3010MN2",
-                                 "N3010MO2",
-                                 "N3010MS2",
-                                 "N3010NC2",
-                                 "N3010NE2",
-                                 "N3010NJ2",
-                                 "N3010NM2",
-                                 "N3010NV2",
-                                 "N3010NY2",
-                                 "N3010OH2",
-                                 "N3010OK2",
-                                 "N3010OR2",
-                                 "N3010PA2",
-                                 "N3010SC2",
-                                 "N3010TN2",
-                                 "N3010TX2",
-                                 "N3010US2",
-                                 "N3010UT2",
-                                 "N3010VA2",
-                                 "N3010WA2",
-                                 "N3010WI2",
-                                 "N3010WV2")
+facets_states = list(
+  "N3010AL2", "N3010AR2", "N3010AZ2", "N3010CA2", "N3010CO2",
+  "N3010CT2", "N3010DC2", "N3010FL2", "N3010GA2", "N3010IA2",
+  "N3010ID2", "N3010IL2", "N3010IN2", "N3010KS2", "N3010KY2",
+  "N3010LA2", "N3010MA2", "N3010MD2", "N3010MI2", "N3010MN2",
+  "N3010MO2", "N3010MS2", "N3010NC2", "N3010NE2", "N3010NJ2",
+  "N3010NM2", "N3010NV2", "N3010NY2", "N3010OH2", "N3010OK2",
+  "N3010OR2", "N3010PA2", "N3010SC2", "N3010TN2", "N3010TX2",
+  "N3010US2", "N3010UT2", "N3010VA2", "N3010WA2", "N3010WI2",
+  "N3010WV2"
+)
+
 
 eia_dir('natural-gas/prod')
 gas_supply = eia_data(
@@ -314,7 +287,7 @@ rm(gas_demand_residential)
 rm(gas_supply)
 
 #### Geopolitical Risk Data ####
-gpr <- read_csv("gpr/data_gpr_daily_recent.csv")
+gpr <- read_csv("data/gpr/data_gpr_daily_recent.csv")
 gpr <- gpr %>% 
   select(
     DAY,
@@ -334,182 +307,13 @@ gas_supply_tot$supply_growth_rate = c(c(NA, diff(gas_supply_tot$total_supply))/l
 df$gas_supply_gr = broadcast_monthly_data(gas_supply_tot$total_supply, df)
 df$gas_demand_gr = broadcast_monthly_data(gas_demand_tot$demand, df)
 
+# add day of the month column 
+df$day = assign_day_month(df$date)
+
 df = merge(df, gpr, by = 'date', all = TRUE)
 df = data.frame(df)
 df = drop_na(df)
 
-#### SUMMARY STATISTICS (PRE-DIFFERENCING) ####
+# Write the dataframe to an Excel file
+write_xlsx(df, "data/complete_dataframe_gas.xlsx")
 
-## removing insignificant columns
-pos = which(names(df) %in% c("month", "day_of_month", "day", "date"))
-values = names(df)[-pos]
-
-stats_list_gas = data.frame(
-  col1 = rep(NA, 8)
-)
-
-final_plot_acf_pacf <- NULL
-
-for (i in seq_along(df[values])){
-  ## descriptive statistics
-  # browser()
-  serie = df[values][i]
-  serie = drop_na(serie)
-  name = colnames(serie)
-  serie = serie[[colnames(serie)[1]]] # it's one in order for the series to "select itself" (it has just one column)
-  
-  
-  ## ADF, JB test
-  adf = c(adf.test(serie)$statistic, adf.test(serie)$p.value)
-  kpss = kpss.test(serie)$statistic
-  jb = jarque.bera.test(serie)$statistic
-  stats = c(min(serie), max(serie), mean(serie), sd(serie), adf, jb, kpss)
-  stats <- data.matrix(stats)
-  ## this other option stores a table object
-  # stats = summary(serie)
-  # assign(name, stats)
-  stats_list_gas = cbind(stats_list_gas, stats)
-  length(stats_list_gas)
-  colnames(stats_list_gas)[i + 1] = name
-  
-  # clearing the dataframe
-  stats_list$stats <- NULL
-  
-  
-  ## ACF and PACF 
-  acf = acf(serie, main = name, lag = 100)
-  pacf = pacf(serie, main = name, lag = 100)
-  
-  rm(name)
-  
-  # final_plot_acf_pacf <- final_plot_acf_pacf + acf + pacf
-}
-
-# clearing the initializing column
-stats_list_gas$col1 <- NULL 
-
-# assigning names to rows
-rownames(stats_list_gas) = c("min", "max", "mean", "sd", "ADF", "pvalue", "JB", "KPSS")
-
-# Create table image for presentation
-table_html <- stats_list_gas %>%
-  kable("html", caption = "Gas Summary Statistics (pre-differencing) ") %>%
-  kable_styling("striped", full_width = F)
-# Define the file paths
-html_file <- "Gas_summary_statistics_prediff.html"
-png_file <- "Gas_summary_statistics_prediff.png"
-
-# Save the table as an HTML file
-save_kable(table_html, file = html_file)
-
-# Convert the HTML file to a PNG image
-webshot(html_file, file = png_file, vwidth = 1600, vheight = 900)
-# Create a table using kableExtra
-table <- kable(stats_list, "latex", caption = "gas summary statistics")
-latex_table = kable_styling(table)
-writeLines(as.character(latex_table), "summary_statistics_GAS_pre_diff.tex")
-
-##### apply first differencing #####
-
-#subset non-stationary columns
-pvalues_gas = stats_list_gas[c('pvalue'), ]
-pvalues_gas = t(pvalues)[1:length(pvalues)]
-non_stationary = which(pvalues_gas > 0.1)
-non_stationary = non_stationary + 1 # skip the date column (index 1)
-names(df)[non_stationary]
-non_stationary_columns = names(df)[non_stationary]
-df[non_stationary_columns]
-
-for (i in seq_along(df[non_stationary_columns])){
-  # browser()
-  serie = df[non_stationary_columns][i]
-  # serie = drop_na(serie)
-  name = paste0(colnames(serie), "_diff")
-  serie = serie[[colnames(serie)[1]]]
-  serie = diff(log(serie))
-  
-  df[non_stationary_columns][i] = c(NA, serie)
-  colnames(df[non_stationary_columns])[i] = name
-  
-  rm(name)
-  
-  # final_plot_acf_pacf <- final_plot_acf_pacf + acf + pacf
-}
-
-write_xlsx(dfs, "GAS_firstdifferenced.xslx")
-
-#### SUMMARY STATISTICS (POST-DIFFERENCING) ####
-## removing insignificant columns
-pos = which(names(df) %in% c("month", "day_of_month", "day", "date"))
-values = names(df)[-pos]
-
-stats_list_gas_pd = data.frame(
-  col1 = rep(NA, 8)
-)
-
-final_plot_acf_pacf <- NULL
-
-for (i in seq_along(df[values])){
-  ## descriptive statistics
-  # browser()
-  serie = df[values][i]
-  serie = drop_na(serie)
-  name = colnames(serie)
-  serie = serie[[colnames(serie)[1]]] # it's one in order for the series to "select itself" (it has just one column)
-  
-  
-  ## ADF, JB test
-  adf = c(adf.test(serie)$statistic, adf.test(serie)$p.value)
-  kpss = kpss.test(serie)$statistic
-  jb = jarque.bera.test(serie)$statistic
-  stats = c(min(serie), max(serie), mean(serie), sd(serie), adf, jb, kpss)
-  stats <- data.matrix(stats)
-  ## this other option stores a table object
-  # stats = summary(serie)
-  # assign(name, stats)
-  stats_list_gas_pd = cbind(stats_list_gas_pd, stats)
-  length(stats_list)
-  colnames(stats_list_gas_pd)[i + 1] = name
-  
-  # clearing the dataframe
-  stats_list_pd$stats <- NULL
-  
-  
-  ## ACF and PACF 
-  acf = acf(serie, main = name, lag = 50)
-  pacf = pacf(serie, main = name, lag = 50)
-  
-  rm(name)
-  
-  # final_plot_acf_pacf <- final_plot_acf_pacf + acf + pacf
-}
-
-# clearing the initializing column
-stats_list_gas_pd$col1 <- NULL 
-
-# assigning names to rows
-rownames(stats_list_gas_pd) = c("min", "max", "mean", "sd", "ADF", "pvalue", "JB", "KPSS")
-
-# Create table image for presentation
-table_html <- stats_list_gas_pd %>%
-  kable("html", caption = "Gas Summary Statistics (post-differencing) ") %>%
-  kable_styling("striped", full_width = F)
-# Define the file paths
-html_file <- "Gas_summary_statistics_postdiff.html"
-png_file <- "Gas_summary_statistics_postdiff.png"
-
-# Save the table as an HTML file
-save_kable(table_html, file = html_file)
-
-# Convert the HTML file to a PNG image
-webshot(html_file, file = png_file, vwidth = 1600, vheight = 900)
-
-# Create a table using kableExtra
-table <- kable(stats_list_pd, "latex", caption = "summary statistics")
-latex_table = kable_styling(table)
-writeLines(as.character(latex_table), "GAS_summary_statistics_post_differencing.tex")
-# we can now see both in the ADF test statistic and in the ACF graphs that the series are stationary
-
-#### LOAD DATA ####
-data = read_excel("GAS_firstdifferenced.xslx")
-#### MODELLING ####

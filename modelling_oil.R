@@ -17,7 +17,7 @@ ssh(library(tidyr))
 ssh(library(ModelMetrics))
 library(ggplot2)
 
-source("functions.R")
+source("code/functions.R")
 
 
 #### IMPORT DATA FROM LOCAL TO AVOID RELOADING EVERYTHING EVERYTIME ####
@@ -76,7 +76,7 @@ window_sizes <- seq(24, 60, by = 1)  # Example window sizes
 forecast_horizon <- 1  # Number of steps to forecast ahead
 
 rolling_arima(train_data, 10, 1)
-arima_windows_evaluation = evaluate_window_size(validation_data, window_sizes, forecast_horizon, rolling_arima, model_arima)
+arima_windows_evaluation = evaluate_window_size(train_data, validation_data, window_sizes, forecast_horizon, rolling_arima, model = model_arima)
 
 
 for (i in 1:n_windows) {
