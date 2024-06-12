@@ -42,7 +42,7 @@ accuracy_table= data.frame(
   col1 = rep(NA, 3) # Placeholder to merge later. Number corresponds to the 7 statistics well include
 )
 
-# ARIMA
+#### ARIMA ####
 # Define rolling window size
 
 # Iterate over the rolling window (VALIDATION)####
@@ -116,7 +116,7 @@ ggplot(data_gas) +
 # test_accuracy_arima <- accuracy(test_forecast, test_data$HENRYHUB[1:10])
 # print(test_accuracy_arima)
 
-# Exponential Smoothing
+#### Exponential Smoothing ####
 
 # exp_smooth_model <- ets(train_data$HENRYHUB)
 # summary(exp_smooth_model)
@@ -171,7 +171,7 @@ check_set_y = check_set_y[[1]][(best_window_size_arima_gas + 1):length(test_data
 acc_ets = accuracy(replace_zero(predictions_ets_gas), replace_zero(check_set_y))
 
 
-# No change
+#### No change ####
 
 no_change_forecast <- function(observations){
   most_recent_value = observations[length(observations)]
@@ -182,8 +182,8 @@ no_change_forecast <- function(observations){
 
 acc_no_change = no_change_forecast(na.omit(data_gas$HENRYHUB))
 
-## ML Models ##
-# Random forests 
+
+#### Random forests ####
 library(randomForest)
 n <- names(data_gas)
 f <- as.formula(paste("HENRYHUB ~", paste(n[!n %in% c("HENRYHUB", "date")], collapse = " + ")))
@@ -247,7 +247,7 @@ ggplot(data_gas) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "Random Forest forecast", y = "HENRYHUB (% change)")
 
-#### Random forests ####
+
 library(randomForest)
 n <- names(data_gas)
 f <- as.formula(paste("HENRYHUB ~", paste(n[!n %in% c("HENRYHUB", "day")], collapse = " + ")))
@@ -314,18 +314,80 @@ rownames(accuracy_table) = c("ARIMA", "ETS", "No change", "Random Forest")
 
 create_table_from_df(accuracy_table, "Accuracy measures Benchmark vs ML models - GAS")
 
-#### archive ####
-# # Pad shorter vectors with NA to make them equal length
-# data <- lapply(data, function(x) {
-#   if (length(x) < max_length) {
-#     c(x, rep(NA, max_length - length(x)))
-#   } else {
-#     x
-#   }
-# })
-# 
-# # Convert the list of padded vectors into a dataframe
-# data <- data.frame(data)
-# Find the maximum length among the vectors
-# max_length <- max(sapply(data, length))
+#### using caret (reference: https://machinelearningmastery.com/tune-machine-learning-algorithms-in-r/) ####
 
+library(randomForest)
+library(mlbench)
+library(caret)
+
+# Determine the split point
+split_point <- floor(0.8 * nrow(data_gas))
+
+# Assign the first 80% to the training set and the remaining 20% to the test set
+
+data_gas$train <- c(rep(TRUE, split_point), rep(FALSE, nrow(data_gas) - split_point))
+istrain <- data_gas$train
+data_gas$train <- NULL
+
+control <- trainControl(method="repeatedcv", number=10, repeats=3)
+seed <- 7
+metric <- "RMSE"
+set.seed(seed)
+mtry <- sqrt(ncol(data_gas) - 1)
+tunegrid <- expand.grid(.mtry=mtry)
+rf_default <- train(HENRYHUB ~., data=data_gas[istrain, ], method="rf", metric=metric, tuneGrid=tunegrid, trControl=control)
+print(rf_default)
+
+predictions_rf2 <- predict(rf_default, newdata =  data_gas[!istrain, ])
+
+ggplot(data_gas) +
+  geom_line(aes(x = date, y = HENRYHUB, color = "Original")) +
+  geom_line(data = data_gas[!istrain, ], aes(x = date, y = predictions_rf2, color = "Forecast")) +
+  scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
+  labs(title = "Random Forest forecast", y = "HENRYHUB (% change)")
+
+## compute accuracy
+check_set_y =subset(data_gas[!istrain, ], select = HENRYHUB)
+check_set_y = check_set_y$HENRYHUB
+
+accuracy_rf_default = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_rf2)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_rf2)), measureMAPE(replace_zero(check_set_y), replace_zero(predictions_rf2)))
+accuracy_rf_default
+
+varImp(rf_default)
+# #### using random Search ####
+# control <- trainControl(method="repeatedcv", number=5, repeats=3, search="random")
+# set.seed(seed)
+# # mtry <- sqrt(ncol(x))
+# rf_random <- train(HENRYHUB~., data=data_gas, method="rf", metric=metric, tuneLength=15, trControl=control, tunegrid = expand.grid(mtry = 1:num_features))
+# print(rf_random)
+# plot(rf_random)
+# 
+# rf_random$modelType
+
+
+#### using grid search (reference: https://www.projectpro.io/recipes/tune-hyper-parameters-grid-search-r)####
+num_features = ncol(data_gas) - 1 # removing target and date
+
+# specifying the CV technique which will be passed into the train() function later and number parameter is the "k" in K-fold cross validation
+train_control = trainControl(method = "cv", number = 5, search = "grid")
+
+set.seed(50)
+# Customsing the tuning grid
+rfGrid <-  expand.grid(.mtry = (1:num_features))# QUESTION: WHY IS THE RMSE DECREASING AND R SQUARED INCREASING AS I INCLUDE MORE VARIABLES? LIKE THIS THE RANDOM FOREST WILL COLLAPSE INTO A NORMAL TREE MODEL.
+
+# training a random forest tree model while tuning parameters
+model_grid = train(HENRYHUB~., data = data_gas[istrain,], method = "rf", trControl = train_control, tuneGrid = rfGrid)
+print(model_grid)
+
+predictions_rf3 = predict(model_grid, newdata = data_gas[!istrain, ])
+
+ggplot(data_gas) +
+  geom_line(aes(x = date, y = HENRYHUB, color = "Original")) +
+  geom_line(data = data_gas[!istrain, ], aes(x = date, y = predictions_rf3, color = "Forecast")) +
+  scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
+  labs(title = "Random Forest forecast (grid search)", y = "HENRYHUB (% change)")
+
+accuracy_rf_grid = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_rf3)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_rf3)), measureMAPE(replace_zero(check_set_y), replace_zero(predictions_rf3)))
+accuracy_rf_grid
+
+varImp(model_grid)

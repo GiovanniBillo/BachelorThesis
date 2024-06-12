@@ -71,9 +71,6 @@ ggplot(data_oil) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "ARIMA forecast", y = "WTI (% change)")
 
-
-
-
 #### EXPONENTIAL SMOOTHING ####
 
 ## training
@@ -198,28 +195,35 @@ control <- trainControl(method="repeatedcv", number=10, repeats=3)
 seed <- 7
 metric <- "RMSE"
 set.seed(seed)
-mtry <- sqrt(ncol(x))
-tunegrid <- expand.grid(.mtry=mtry)
-rf_default <- train(WTI ~., data=data_oil, method="rf", metric=metric, tuneGrid=tunegrid, trControl=control)
+mtry <- sqrt(ncol(data_oil) - 1)
+tunegrid <- expand.grid(.mtry=mtry, 
+                        .ntree())
+rf_default <- train(WTI ~., data=data_oil[istrain, ], method="rf", metric=metric, tuneGrid=tunegrid, trControl=control)
 print(rf_default)
 
-predictions_rf2 <- predict(rf_default, newdata =  validation_data)
+predictions_rf2 <- predict(rf_default, newdata =  data_oil[!istrain, ])
 
 ggplot(data_oil) +
   geom_line(aes(x = date, y = WTI, color = "Original")) +
-  geom_line(data = test_data[-(1:125),], aes(x = date, y = predictions_rf2, color = "Forecast")) +
+  geom_line(data = data_oil[!istrain, ], aes(x = date, y = predictions_rf2, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "Random Forest forecast", y = "WTI (% change)")
 
-#### using random Search ####
-control <- trainControl(method="repeatedcv", number=10, repeats=3, search="random")
-set.seed(seed)
-mtry <- sqrt(ncol(x))
-rf_random <- train(WTI~., data=data_oil, method="rf", metric=metric, tuneLength=15, trControl=control, tunegrid = expand.grid(mtry = 1:num_features))
-print(rf_random)
-plot(rf_random)
+## compute accuracy
+check_set_y = as.numeric(subset(data_oil[!istrain, ], select = WTI))
+check_set_y = check_set_y$WTI
 
-rf_random$modelType
+accuracy_rf_default = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_rf2)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_rf2)), measureMAPE(replace_zero(check_set_y), replace_zero(predictions_rf2)))
+accuracy_rf_default
+# #### using random Search ####
+# control <- trainControl(method="repeatedcv", number=5, repeats=3, search="random")
+# set.seed(seed)
+# # mtry <- sqrt(ncol(x))
+# rf_random <- train(WTI~., data=data_oil, method="rf", metric=metric, tuneLength=15, trControl=control, tunegrid = expand.grid(mtry = 1:num_features))
+# print(rf_random)
+# plot(rf_random)
+# 
+# rf_random$modelType
 
 
 #### using grid search (reference: https://www.projectpro.io/recipes/tune-hyper-parameters-grid-search-r)####
@@ -230,17 +234,28 @@ train_control = trainControl(method = "cv", number = 5, search = "grid")
 
 set.seed(50)
 # Customsing the tuning grid
-rfGrid <-  expand.grid(mtry = (1:num_features)) # QUESTION: WHY IS THE RMSE DECREASING AND R SQUARED INCREASING AS I INCLUDE MORE VARIABLES? LIKE THIS THE RANDOM FOREST WILL COLLAPSE INTO A NORMAL TREE MODEL.
+rfGrid <-  expand.grid(.mtry = (1:num_features))# QUESTION: WHY IS THE RMSE DECREASING AND R SQUARED INCREASING AS I INCLUDE MORE VARIABLES? LIKE THIS THE RANDOM FOREST WILL COLLAPSE INTO A NORMAL TREE MODEL.
 
 # training a random forest tree model while tuning parameters
-model = train(WTI~., data = data_oil[istrain,], method = "rf", trControl = train_control, tuneGrid = rfGrid)
+model_grid = train(WTI~., data = data_oil[istrain,], method = "rf", trControl = train_control, tuneGrid = rfGrid)
+print(model_grid)
 
-# summarising the results
-print(model)
+predictions_rf3 = predict(model_grid, newdata = data_oil[!istrain, ])
 
-rf_windows_evaluation = evaluate_window_size(val_data = validation_data, window_sizes = window_sizes, forecast_horizon = forecast_horizon, func = rolling_rf, model = model_gridsearch)
+ggplot(data_oil) +
+  geom_line(aes(x = date, y = WTI, color = "Original")) +
+  geom_line(data = data_oil[!istrain, ], aes(x = date, y = predictions_rf3, color = "Forecast")) +
+  scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
+  labs(title = "Random Forest forecast (grid search)", y = "WTI (% change)")
+
+accuracy_rf_grid = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_rf3)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_rf3)), measureMAPE(replace_zero(check_set_y), replace_zero(predictions_rf3)))
+accuracy_rf_grid
+
+## rolling windows evaluation ##
+
+rf_windows_evaluation = evaluate_window_size(val_data = validation_data, window_sizes = window_sizes, forecast_horizon = forecast_horizon, func = rolling_rf, model = model_grid)
 best_window_size_rf = window_sizes[which.min(rowSums(rf_windows_evaluation))]
-predictions_rf = rolling_rf(data = test_data, window_size = best_window_size_rf, forecast_horizon = forecast_horizon, model = model_gridsearch)
+predictions_rf = rolling_rf(data = test_data, window_size = best_window_size_rf, forecast_horizon = forecast_horizon, model = model_grid)
 
 ggplot(data_oil) +
   geom_line(aes(x = date, y = WTI, color = "Original")) +
