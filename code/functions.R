@@ -197,7 +197,6 @@ summary_statistics <- function(data, commodity, data_state){
     # serie = drop_na(serie)
     name = colnames(serie)
     serie = serie[[colnames(serie)[1]]] # it's one in order for the series to "select itself" (it has just one column)
-    
     ## ADF, JB test
     adf = tseries::adf.test(serie)$statistic
     pvalue = tseries::adf.test(serie)$p.value
@@ -268,7 +267,7 @@ summary_statistics <- function(data, commodity, data_state){
 }
 apply_first_differencing <- function(df, stats_list, commodity){
   ##### apply first differencing #####
-  
+  # browser()
   #subset non-stationary columns
   pvalues = stats_list[c('pvalue'), ]
   pvalues = t(pvalues)[1:length(pvalues)]
@@ -285,19 +284,19 @@ apply_first_differencing <- function(df, stats_list, commodity){
     serie = drop_na(serie)
     name = paste0(colnames(serie), "_diff")
     serie = serie[[colnames(serie)[1]]]
-    serie = diff(log(serie))
-    
-    df[non_stationary_columns][i] = c(NA, serie)
-    colnames(df[non_stationary_columns])[i] = name
+    if (name != "gas_demand_gr_diff"){ #kinda hardcoded to avoid it differencing a broadcasted column
+      serie = diff(log(serie))
+      df[non_stationary_columns][i] = c(NA, serie)
+      colnames(df[non_stationary_columns])[i] = name
+    }
     
     rm(name)
     
-    # final_plot_acf_pacf <- final_plot_acf_pacf + acf + pacf
   }
-  #browser()
   if (commodity == "GAS"){
     ## apply log to HENRYHUB
     df$HENRYHUB = c(NA, diff(log(df$HENRYHUB)))
+    df$HENRYHUB = replace_zero(df$HENRYHUB)
   }
   
   write_xlsx(df, paste0("data/", commodity, "_firstdifferenced.xlsx"))

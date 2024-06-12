@@ -24,26 +24,31 @@ ssh(library(readxl))
 ssh(library(writexl))
 
 
-source("functions.R")
+source("code/functions.R")
 
 
 ## Read in data (assembled beforehand) ##
-data_oil <- read_excel("data/complete_dataframe.xlsx")
+data_oil <- read_excel("data/complete_dataframe_oil.xlsx")
 data_gas <- read_excel("data/complete_dataframe_gas.xlsx")
 
 #### SUMMARY STATISTICS (PRE-DIFFERENCING) ####
 # remove insignificant columns
-pos = which(names(data_oil) %in% c("month", "day_of_month", "day", "date"))
+pos_oil = which(names(data_oil) %in% c("day_of_month", "day", "date"))
+pos_gas = which(names(data_gas) %in% c("day_of_month", "day", "date"))
 
-values_oil = names(data_oil)[-pos]
+values_oil = names(data_oil)[-pos_oil]
 stats_oil = summary_statistics(data_oil[values_oil], "OIL", "(Pre-differencing)")
 
-values_gas = names(data_gas)[-pos]
+values_gas = names(data_gas)[-pos_gas]
 stats_gas = summary_statistics(data_gas[values_gas], "GAS", "(Pre-differencing)")
 
 apply_first_differencing(data_oil, stats_oil, "OIL")
 apply_first_differencing(data_gas, stats_gas, "GAS")
 
+#### SUMMARY STATISTICS (POST-DIFFERENCING) ####
+data_oil_fd <- read_excel("OIL_firstdifferenced.xlsx")
+data_oil_fd = drop_na(data_oil_fd)
+stats_oil_pd = summary_statistics(data_oil_fd[values_oil], "OIL", "(Post-differencing)")
 
 data_gas_fd <- read_excel("GAS_firstdifferenced.xlsx")
 data_gas_fd = drop_na(data_gas_fd)
