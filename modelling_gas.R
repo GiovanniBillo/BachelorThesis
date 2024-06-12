@@ -9,7 +9,7 @@ ssh(library(aTSA))
 ssh(library(forecast))
 ssh(library(rugarch))
 ssh(library(ModelMetrics))
-ssh(library(keras)) # neural networks
+ssh(library(mlr))
 
 source("code/functions.R")
 
@@ -45,7 +45,7 @@ accuracy_table= data.frame(
 #### ARIMA ####
 # Define rolling window size
 
-# Iterate over the rolling window (VALIDATION)####
+# Iterate over the rolling window (VALIDATION)#
 # arima_model <- auto.arima(train_data$HENRYHUB)
 # summary(arima_model)
 # rolling_windows(train_data, validation_data, auto.arima, 10)
@@ -59,7 +59,7 @@ accuracy_table= data.frame(
 # validation_accuracy_arima <- accuracy(validation_forecast_arima, validation_data$HENRYHUB[1:10])
 # print(validation_accuracy_arima)
 
-# Iterate over the rolling window (TESTING)####
+# Iterate over the rolling window (TESTING)#
 
 # predictions_arima = rolling_windows(train_data, test_data, auto.arima, 50)
 
@@ -309,6 +309,10 @@ create_table_from_df(accuracy_table, "Accuracy measures Benchmark vs ML models -
 library(randomForest)
 library(mlbench)
 library(caret)
+library(mlr)
+
+names_cols <- names(data_gas)
+f <- as.formula(paste("HENRYHUB ~", paste(names_cols[!names_cols %in% c("HENRYHUB", "date")], collapse = " + ")))
 
 # Determine the split point
 split_point <- floor(0.8 * nrow(data_gas))
@@ -325,7 +329,7 @@ metric <- "RMSE"
 set.seed(seed)
 mtry <- sqrt(ncol(data_gas) - 1)
 tunegrid <- expand.grid(.mtry=mtry)
-rf_default <- train(f, data=data_gas[istrain, ], method="rf", metric=metric, tuneGrid=tunegrid, trControl=control)
+rf_default <- caret::train(f, data=data_gas[istrain, ], method="rf", metric=metric, tuneGrid=tunegrid, trControl=control)
 print(rf_default)
 
 predictions_rf2 <- predict(rf_default, newdata =  data_gas[!istrain, ])
@@ -334,13 +338,15 @@ ggplot(data_gas) +
   geom_line(aes(x = date, y = HENRYHUB, color = "Original")) +
   geom_line(data = data_gas[!istrain, ], aes(x = date, y = predictions_rf2, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
-  labs(title = "Random Forest forecast", y = "HENRYHUB (% change)")
+  labs(title = "Random Forest forecast (default parameters)", y = "HENRYHUB (% change)")
 
 ## compute accuracy
 check_set_y =subset(data_gas[!istrain, ], select = HENRYHUB)
 check_set_y = check_set_y$HENRYHUB
 
-accuracy_rf_default = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_rf2)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_rf2)), measureMAPE(replace_zero(check_set_y), replace_zero(predictions_rf2)))
+accuracy_rf_default = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_rf2)), 
+                        measureRMSE(replace_zero(check_set_y), replace_zero(predictions_rf2)), 
+                        measureMAPE(replace_zero(check_set_y), replace_zero(predictions_rf2)))
 accuracy_rf_default
 
 varImp(rf_default)
@@ -363,10 +369,10 @@ train_control = trainControl(method = "cv", number = 5, search = "grid")
 
 set.seed(50)
 # Customsing the tuning grid
-rfGrid <-  expand.grid(.mtry = (1:num_features))# QUESTION: WHY IS THE RMSE DECREASING AND R SQUARED INCREASING AS I INCLUDE MORE VARIABLES? LIKE THIS THE RANDOM FOREST WILL COLLAPSE INTO A NORMAL TREE MODEL.
+rfGrid <-  expand.grid(.mtry = (1:num_features))# model counts also days of the month as features, so the number here is greater than the actual parameters in the model.
 
 # training a random forest tree model while tuning parameters
-model_grid = train(f, data = data_gas[istrain,], method = "rf", trControl = train_control, tuneGrid = rfGrid)
+model_grid = caret::train(f, data = data_gas[istrain,], method = "rf", trControl = train_control, tuneGrid = rfGrid)
 print(model_grid)
 
 predictions_rf3 = predict(model_grid, newdata = data_gas[!istrain, ])
