@@ -215,6 +215,7 @@ check_set_y = check_set_y$WTI
 
 accuracy_rf_default = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_rf2)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_rf2)), measureMAPE(replace_zero(check_set_y), replace_zero(predictions_rf2)))
 accuracy_rf_default
+
 # #### using random Search ####
 # control <- trainControl(method="repeatedcv", number=5, repeats=3, search="random")
 # set.seed(seed)

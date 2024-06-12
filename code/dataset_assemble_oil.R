@@ -1,21 +1,26 @@
 #### working directory ####
 setwd("C:/Users/billo/OneDrive/Desktop/FAU/Thesis/data")
 #### packages ####
-install.packages("eia") # access to US energy administration data
-devtools::install_github("jcizel/FredR")
-install.packages("oecd")
-install.packages("patchwork")
-install.packages("kableExtra")
-install.packages('writexl')
-install.packages("TimeSeries")
-install.packages("aTSA")
-install.packages("keras")
-install.packages("cowplot")
-install.packages("png")
-install.packages("gt")
-install.packages("webshot2")
-webshot2::install_phantomjs()
-install.packages("readxl")
+# CRAN packages
+install.packages(c(
+  "eia",          # Access to US Energy Administration data
+  "patchwork",    # Combine multiple ggplots
+  "kableExtra",   # Create complex tables
+  "writexl",      # Write Excel files
+  "TimeSeries",   # Time series analysis
+  "aTSA",         # Advanced Time Series Analysis
+  "cowplot",      # Plotting
+  "png",          # Read and write PNG images
+  "gt",           # Create tables
+  "webshot2",     # Take screenshots of web pages
+  "readxl"        # Read Excel files
+))
+
+# GitHub packages
+if (!requireNamespace("devtools", quietly = TRUE)) {
+  install.packages("devtools")
+}
+devtools::install_github("jcizel/FredR")  # Access to FRED data
 
 #### library calls ####
 ssh <- suppressPackageStartupMessages

@@ -185,8 +185,8 @@ acc_no_change = no_change_forecast(na.omit(data_gas$HENRYHUB))
 
 #### Random forests ####
 library(randomForest)
-n <- names(data_gas)
-f <- as.formula(paste("HENRYHUB ~", paste(n[!n %in% c("HENRYHUB", "date")], collapse = " + ")))
+names_cols <- names(data_gas)
+f <- as.formula(paste("HENRYHUB ~", paste(names_cols[!names_cols %in% c("HENRYHUB", "date")], collapse = " + ")))
 
 # single estimation
 install.packages("mlr") # for hyperparameter tuning
@@ -298,16 +298,6 @@ ggplot(data_gas) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "Random Forest forecast", y = "HENRYHUB (% change)")
 
-# Recurrent Neural Network
-
-NNdata = data.matrix(data[, -1]) # remove date column
-NNtrain <- NNdata[1:n_train, ]
-NNvalidation <- NNdata[(n_train + 1):(n_train + n_validation), ]
-NNtest <- NNdata[(n_train + n_validation + 1):n, ]
-# preprocessing
-mean = apply(NNtrain, 2, mean) # 2 parameter indicates that function will be applied column-wise
-std = apply(NNtrain, 2, sd)
-NNdata <- scale(NNdata, center = mean, scale = std)
 
 accuracy_table = rbind(acc_arima, acc_ets, acc_no_change, acc_rf)
 rownames(accuracy_table) = c("ARIMA", "ETS", "No change", "Random Forest")
@@ -329,13 +319,13 @@ data_gas$train <- c(rep(TRUE, split_point), rep(FALSE, nrow(data_gas) - split_po
 istrain <- data_gas$train
 data_gas$train <- NULL
 
-control <- trainControl(method="repeatedcv", number=10, repeats=3)
+control <- trainControl(method="repeatedcv", number=5, repeats=3)
 seed <- 7
 metric <- "RMSE"
 set.seed(seed)
 mtry <- sqrt(ncol(data_gas) - 1)
 tunegrid <- expand.grid(.mtry=mtry)
-rf_default <- train(HENRYHUB ~., data=data_gas[istrain, ], method="rf", metric=metric, tuneGrid=tunegrid, trControl=control)
+rf_default <- train(f, data=data_gas[istrain, ], method="rf", metric=metric, tuneGrid=tunegrid, trControl=control)
 print(rf_default)
 
 predictions_rf2 <- predict(rf_default, newdata =  data_gas[!istrain, ])
@@ -366,7 +356,7 @@ varImp(rf_default)
 
 
 #### using grid search (reference: https://www.projectpro.io/recipes/tune-hyper-parameters-grid-search-r)####
-num_features = ncol(data_gas) - 1 # removing target and date
+num_features = ncol(data_gas) + 31 -2 # removing target and date
 
 # specifying the CV technique which will be passed into the train() function later and number parameter is the "k" in K-fold cross validation
 train_control = trainControl(method = "cv", number = 5, search = "grid")
@@ -376,7 +366,7 @@ set.seed(50)
 rfGrid <-  expand.grid(.mtry = (1:num_features))# QUESTION: WHY IS THE RMSE DECREASING AND R SQUARED INCREASING AS I INCLUDE MORE VARIABLES? LIKE THIS THE RANDOM FOREST WILL COLLAPSE INTO A NORMAL TREE MODEL.
 
 # training a random forest tree model while tuning parameters
-model_grid = train(HENRYHUB~., data = data_gas[istrain,], method = "rf", trControl = train_control, tuneGrid = rfGrid)
+model_grid = train(f, data = data_gas[istrain,], method = "rf", trControl = train_control, tuneGrid = rfGrid)
 print(model_grid)
 
 predictions_rf3 = predict(model_grid, newdata = data_gas[!istrain, ])
