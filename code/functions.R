@@ -406,21 +406,70 @@ rolling_arima <- function(data, window_size, forecast_horizon, model) {
   return(forecasts)
 }
 
-rolling_ets <- function(data, window_size, forecast_horizon, model) {
-  # browser()
-  n <- length(data[[2]])
-  forecasts <- numeric(n - window_size - forecast_horizon + 1)
+# rolling_ets <- function(data, window_size, forecast_horizon, model) {
+#   # browser()
+#   n <- length(data[[2]])
+#   forecasts <- numeric(n - window_size - forecast_horizon + 1)
+# 
+#   for (i in 1:(n - window_size - forecast_horizon + 1)) {
+#     # browser()
+#     window_data <- data[i:(i + window_size - 1), ]
+#     alpha = get_params(model)
+#     fit <- ets(window_data[[2]], alpha = alpha)
+#     forecast <- predict(fit, n.ahead = forecast_horizon)
+#     forecasts[i] <- extract_forecast(forecast)
+#   }
+# 
+#   return(forecasts)
+# }
+
+rolling_ets <- function(traindata, valdata, test_data, window_sizes, forecast_horizon) {
+  n_forecasts <- length(valdata[[2]])
+  n_train = length(train_data[[2]])
+  n_test = length(test_data[[2]])
+  results <- data.frame(ALPHA = numeric(), WINDOWSIZE = numeric(), RMSE = numeric())
   
-  for (i in 1:(n - window_size - forecast_horizon + 1)) {
-    # browser()
-    window_data <- data[i:(i + window_size - 1), ]
-    alpha = get_params(model)
-    fit <- ets(window_data[[2]], alpha = alpha) 
-    forecast <- predict(fit, n.ahead = forecast_horizon)
-    forecasts[i] <- extract_forecast(forecast)
+  for (window_size in window_sizes) {
+    for (i in 1:(n_train - window_size - forecast_horizon + 1)) {
+      while(i <= n_forecasts){
+        window_data <- traindata[i:(i + window_size - 1), ]
+        actual_values = valdata[i, 2]
+        actual_values = actual_values[[1]]
+        fit <- ets(window_data[[2]])
+        forecast <- predict(fit, n.ahead = forecast_horizon, newdata = actual_values)
+        forecast = extract_forecast(forecast)
+        alpha = get_params(fit)
+        # mae <- mae(actual_values, forecast)
+        # mse <- mse(actual_values, forecast)
+        rmse <- rmse(actual_values, forecast)
+        
+        results <- rbind(results, data.frame(ALPHA = alpha, WINDOWSIZE = window_size, RMSE = rmse))
+      }
+    }
   }
   
-  return(forecasts)
+  # browser()
+  # select best performing model
+  min_rmse_index = which.min(results$RMSE)
+  best_alpha = results$ALPHA[min_rmse_index]
+  best_window_size = results$WINDOWSIZE[min_rmse_index]
+  
+  forecasts <- numeric(n_forecasts - best_window_size - forecast_horizon + 1)
+  
+  for (i in 1:(n_train - window_size - forecast_horizon + 1)) {
+    
+    window_data <- traindata[i:(i + window_size - 1), ]
+    actual_values = valdata[i, 2]
+    actual_values = actual_values[[1]]
+    fit <- ets(window_data[[2]], alpha = best_alpha)
+    forecast <- predict(fit, n.ahead = forecast_horizon, newdata = actual_values)
+    forecast = extract_forecast(forecast)
+    forecasts[[i]] <- forecast
+    if (length(forecasts) == n_test){
+      return(forecasts)
+    }
+    
+  }
 }
 
 # QUESTION: should I use just validation data in the rolling windows where I am reestimating the random forest
@@ -449,6 +498,8 @@ rolling_rf <- function(tr_data = NULL, data, window_size, forecast_horizon, mode
     forecast <- predict(fit, n.ahead = forecast_horizon) # newdata = data[, -c(1, 2)# removing target and date column before giving the predictor variables for the new datapoint
     # j = j + 1 
     forecasts[i] <- extract_forecast(forecast)
+    
+    
   }
   
   return(forecasts)

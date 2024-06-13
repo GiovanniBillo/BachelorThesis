@@ -21,6 +21,10 @@ library(mlr)
 
 source("code/functions.R")
 
+#### global ####
+window_sizes <- seq(30, 100, by = 10)  # range of window sizes to try out
+forecast_horizon <- 1  # Number of steps to forecast ahead
+
 
 #### IMPORT DATA FROM LOCAL TO AVOID RELOADING EVERYTHING EVERYTIME ####
 data_oil <- read_excel("data/OIL_firstdifferenced.xlsx")
@@ -50,8 +54,6 @@ dim(test_data)
 
 ## training
 model_arima = auto.arima(train_data$WTI) # automatically selects the best model
-window_sizes <- seq(24, 60, by = 1)  # range of window sizes to try out
-forecast_horizon <- 1  # Number of steps to forecast ahead
 
 ## validation
 # selecting the best performing window size
@@ -73,6 +75,42 @@ ggplot(data_oil) +
 
 #### EXPONENTIAL SMOOTHING ####
 
+## messing around ##
+## training, validation and test 
+try = ets(train_data$WTI, alpha = best_alpha)
+pred_try = predict(try, newdata = test_data)
+
+best_alpha = rolling_ets(train_data, validation_data, 50, 1)
+best_alpha
+model_ets = ets(train_data$WTI, alpha = best_alpha) # also automatically selects the best alpha parameter
+predictions_ets = rolling_ets(train_data, validation_data, test_data, window_sizes, forecast_horizon)
+
+ggplot(data_oil) +
+  geom_line(aes(x = date, y = WTI, color = "Original")) +
+  geom_line(data = test_data, aes(x = date, y = predictions_ets, color = "Forecast")) +
+  scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
+  labs(title = "Exponential Smoothing forecast", y = "WTI (% change)")
+
+## validation
+ets_windows_evaluation = evaluate_window_size(train_data, validation_data, window_sizes, forecast_horizon, rolling_ets, model_ets)
+
+best_window_size_ets = window_sizes[which.min(rowSums(ets_windows_evaluation))]
+
+## testing
+predictions_ets = rolling_ets(test_data, best_window_size_ets, forecast_horizon, model_ets)
+
+# Evaluate performance 
+check_set_y = check_set_y$WTI[(best_window_size_ets + 1):length(test_data$WTI)]
+
+# return error metrics
+acc_ets = accuracy(replace_zero(predictions_ets), replace_zero(check_set_y))
+
+
+ggplot(data_oil) +
+  geom_line(aes(x = date, y = WTI, color = "Original")) +
+  geom_line(data = test_data[-(1:best_window_size_ets),], aes(x = date, y = predictions_ets, color = "Forecast")) +
+  scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
+  labs(title = "Exponential Smoothing forecast", y = "WTI (% change)")
 ## training
 model_ets = ets(train_data$WTI) # also automatically selects the best alpha parameter
 
