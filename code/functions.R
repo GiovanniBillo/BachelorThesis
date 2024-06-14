@@ -302,8 +302,8 @@ apply_first_differencing <- function(df, stats_list, commodity){
   write_xlsx(df, paste0("data/", commodity, "_firstdifferenced.xlsx"))
   print(paste0(commodity, "_firstdifferenced.xlsx", " created"))
 }
+
 assembled_plots <- function(df, commodity){
-  # browser()
   plots <- list()
   data = data.frame(df)
   data = drop_na(data)
@@ -323,7 +323,14 @@ assembled_plots <- function(df, commodity){
       plots[[i]] <- plot
     }
   }
-  combined_plot = plot_grid(plotlist = plots,ncol = 5)
+  # browser()
+  plots <- Filter(Negate(is.null), plots)
+  if (commodity == "oil"){
+    combined_plot = plot_grid(plotlist = plots,ncol = 5)
+  }
+  else if(commodity == "gas"){
+    combined_plot = plot_grid(plotlist = plots,ncol = 4)
+  }
   combined_plot
   ggsave(paste0("combined_plot_", commodity, ".png"), combined_plot, width = 10, height = 8)
 }
@@ -359,51 +366,182 @@ get_params <- function(model){
   }
 }
 
-rolling_arima <- function(data, window_size, forecast_horizon, model) {
-  n <- length(data[[2]])
-  forecasts <- numeric(n - window_size - forecast_horizon + 1)
-  
-  for (i in 1:(n - window_size - forecast_horizon + 1)) {
-    tryCatch({
-      window_data <- data[i:(i + window_size - 1), ]
-      fit <- arima(window_data[[2]], order = get_params(model))  # parameters extracted by the function from the best given model chosen by auto.arima()
-      forecast <- predict(fit, n.ahead = forecast_horizon)
-      forecasts[i] <- extract_forecast(forecast)
-    }, error = function(e) {
-      # Error-handling block
-      # Print error message
-      print(paste("Error:", e))
-      
-      # First-level error handling
-      tryCatch({
-        # Apply differencing to make the data stationary
-        window_data[[2]] <- c(NA, diff(window_data[[2]], lag = 1, differences = 1))  # First-order differencing
+# rolling_arima <- function(data, window_size, forecast_horizon, model) {
+#   n <- length(data[[2]])
+#   forecasts <- numeric(n - window_size - forecast_horizon + 1)
+#   
+#   for (i in 1:(n - window_size - forecast_horizon + 1)) {
+#     tryCatch({
+#       window_data <- data[i:(i + window_size - 1), ]
+#       fit <- arima(window_data[[2]], order = get_params(model))  # parameters extracted by the function from the best given model chosen by auto.arima()
+#       forecast <- predict(fit, n.ahead = forecast_horizon)
+#       forecasts[i] <- extract_forecast(forecast)
+#     }, error = function(e) {
+#       # Error-handling block
+#       # Print error message
+#       print(paste("Error:", e))
+#       
+#       # First-level error handling
+#       tryCatch({
+#         # Apply differencing to make the data stationary
+#         window_data[[2]] <- c(NA, diff(window_data[[2]], lag = 1, differences = 1))  # First-order differencing
+#         
+#         # Retry fitting the ARIMA model with differenced data
+#         fit <- arima(window_data[[2]], order = c(3, 0, 0))
+#         
+#         # Proceed with forecasting
+#         forecast <- predict(fit, n.ahead = forecast_horizon)
+#         forecasts[i] <- extract_forecast(forecast)
+#       }, error = function(e) {
+#         # Second-level error handling
+#         print(paste("Error (second level):", e))
+#         browser()  # Enter browser mode to debug
+#         
+#         # Apply differencing to make the data stationary again
+#         window_data[[2]] <- c(NA, diff(window_data[[2]], lag = 1, differences = 1))  # First-order differencing
+#         
+#         # Retry fitting the ARIMA model with differenced data
+#         fit <- arima(window_data[[2]], order = c(3, 0, 0))
+#         
+#         # Proceed with forecasting
+#         forecast <- predict(fit, n.ahead = forecast_horizon, newdata = )
+#         forecasts[i] <- extract_forecast(forecast)
+#       })
+#     })
+#   }
+#   
+#   return(forecasts)
+# }
+
+# rolling_arima <- function(traindata, valdata, testdata, window_sizes, forecast_horizon) {
+#   # browser()
+#   n_forecasts <- length(valdata[[2]])
+#   n_train = length(train_data[[2]])
+#   n_test = length(test_data[[2]])
+#   results <- data.frame(ORDER = numeric(), WINDOWSIZE = numeric(), RMSE = numeric())
+#   
+#   for (window_size in window_sizes) {
+#     for (i in 1:(n_train - window_size - forecast_horizon + 1)) {
+#       while(i <= n_forecasts){
+#         browser()
+#         window_data <- traindata[i:(i + window_size - 1), ]
+#         actual_values = valdata[i, 2]
+#         actual_values = actual_values[[1]]
+#         fit <- auto.arima(window_data[[2]])
+#         forecast <- predict(fit, n.ahead = forecast_horizon, newdata = valdata[i, -2])
+#         forecast = extract_forecast(forecast)
+#         order = get_params(fit)
+#         # mae <- mae(actual_values, forecast)
+#         # mse <- mse(actual_values, forecast)
+#         rmse <- rmse(actual_values, forecast)
+#         
+#         results <- rbind(results, data.frame(ORDER = order, WINDOWSIZE = window_size, RMSE = rmse))
+#       }
+#     }
+#   }
+#   
+#   browser()
+#   min_rmse_index = which.min(results$RMSE)
+#   best_order = results$ORDER[min_rmse_index]
+#   best_window_size = results$WINDOWSIZE[min_rmse_index]
+#   
+#   forecasts <- numeric(n_forecasts - best_window_size - forecast_horizon + 1)
+#   
+#   for (i in 1:(n - window_size - forecast_horizon + 1)) {
+#     tryCatch({
+#       window_data <- traindata[i:(i + window_size - 1), ]
+#       actual_values = test_data[i, 2]
+#       actual_values = actual_values[[1]]
+#       fit <- arima(window_data[[2]], order = best_order)  # parameters extracted by the function from the best given model chosen by auto.arima()
+#       forecast <- predict(fit, n.ahead = forecast_horizon, newdata = actual_values)
+#       forecasts[i] <- extract_forecast(forecast)
+#     }, error = function(e) {
+#       # Error-handling block
+#       # Print error message
+#       print(paste("Error:", e))
+#       
+#       # First-level error handling
+#       tryCatch({
+#         # Apply differencing to make the data stationary
+#         window_data[[2]] <- c(NA, diff(window_data[[2]], lag = 1, differences = 1))  # First-order differencing
+#         
+#         # Retry fitting the ARIMA model with differenced data
+#         fit <- arima(window_data[[2]], order = best_order)
+#         
+#         # Proceed with forecasting
+#         forecast <- predict(fit, n.ahead = forecast_horizon, newdata = actual_values)
+#         forecasts[i] <- extract_forecast(forecast)
+#       }, error = function(e) {
+#         # Second-level error handling
+#         print(paste("Error (second level):", e))
+#         # browser()  # Enter browser mode to debug
+#         
+#         # Apply differencing to make the data stationary again
+#         window_data[[2]] <- c(NA, diff(window_data[[2]], lag = 1, differences = 1))  # First-order differencing
+#         
+#         # Retry fitting the ARIMA model with differenced data
+#         fit <- arima(window_data[[2]], order = best_order)
+#         
+#         # Proceed with forecasting
+#         forecast <- predict(fit, n.ahead = forecast_horizon, newdata = actual_values)
+#         forecasts[i] <- extract_forecast(forecast)
+#       })
+#     })
+#   }
+#   
+#   return(forecasts)
+# }
+
+rolling_arima <- function(traindata, valdata, test_data, window_sizes, forecast_horizon) {
+  n_forecasts <- length(valdata[[2]])
+  n_train = length(train_data[[2]])
+  n_test = length(test_data[[2]])
+  results <- data.frame(WINDOWSIZE = numeric(), RMSE = numeric())
+  order_list = list()
+  for (window_size in window_sizes) {
+    for (i in 1:(n_train - window_size - forecast_horizon + 1)) {
+      if (i <= n_forecasts){
+        # browser()
+        window_data <- traindata[i:(i + window_size - 1), ]
+        actual_values = valdata[i, 2]
+        actual_values = actual_values[[1]]
+        fit <- auto.arima(window_data[[2]])
+        forecast <- predict(fit, n.ahead = forecast_horizon, newdata = validation_data)
+        forecast = extract_forecast(forecast)
+        order = list(get_params(fit))
+        # mae <- mae(actual_values, forecast)
+        # mse <- mse(actual_values, forecast)
+        rmse <- rmse(actual_values, forecast)
         
-        # Retry fitting the ARIMA model with differenced data
-        fit <- arima(window_data[[2]], order = c(3, 0, 0))
-        
-        # Proceed with forecasting
-        forecast <- predict(fit, n.ahead = forecast_horizon)
-        forecasts[i] <- extract_forecast(forecast)
-      }, error = function(e) {
-        # Second-level error handling
-        print(paste("Error (second level):", e))
-        browser()  # Enter browser mode to debug
-        
-        # Apply differencing to make the data stationary again
-        window_data[[2]] <- c(NA, diff(window_data[[2]], lag = 1, differences = 1))  # First-order differencing
-        
-        # Retry fitting the ARIMA model with differenced data
-        fit <- arima(window_data[[2]], order = c(3, 0, 0))
-        
-        # Proceed with forecasting
-        forecast <- predict(fit, n.ahead = forecast_horizon, newdata = )
-        forecasts[i] <- extract_forecast(forecast)
-      })
-    })
+        order_list = c(order_list, order)
+        results <- rbind(results, data.frame( WINDOWSIZE = window_size, RMSE = rmse))
+      }
+    }
   }
+  results$ORDER = order_list
+  # browser()
+  # select best performing model
+  results = subset(results, RMSE != 0)
+  min_rmse_index = which.min(results$RMSE)
+  best_order = results$ORDER[min_rmse_index]
+  best_window_size = results$WINDOWSIZE[min_rmse_index]
   
-  return(forecasts)
+  forecasts <- numeric(n_forecasts - best_window_size - forecast_horizon + 1)
+  
+  for (i in 1:(n_train - window_size - forecast_horizon + 1)) {
+    
+    window_data <- traindata[i:(i + window_size - 1), ]
+    actual_values = test_data[i, 2]
+    actual_values = actual_values[[1]]
+    fit <- arima(window_data[[2]], order = best_order[[1]])
+    forecast <- predict(fit, n.ahead = forecast_horizon, newdata = test_data)
+    forecast = extract_forecast(forecast)
+    forecasts[[i]] <- forecast
+    if (length(forecasts) == n_test){
+      return(forecasts)
+    }
+    
+  }
 }
 
 # rolling_ets <- function(data, window_size, forecast_horizon, model) {
@@ -431,12 +569,12 @@ rolling_ets <- function(traindata, valdata, test_data, window_sizes, forecast_ho
   
   for (window_size in window_sizes) {
     for (i in 1:(n_train - window_size - forecast_horizon + 1)) {
-      while(i <= n_forecasts){
+      if (i <= n_forecasts){
         window_data <- traindata[i:(i + window_size - 1), ]
         actual_values = valdata[i, 2]
         actual_values = actual_values[[1]]
         fit <- ets(window_data[[2]])
-        forecast <- predict(fit, n.ahead = forecast_horizon, newdata = actual_values)
+        forecast <- predict(fit, n.ahead = forecast_horizon, newdata = valdata)
         forecast = extract_forecast(forecast)
         alpha = get_params(fit)
         # mae <- mae(actual_values, forecast)
@@ -462,7 +600,7 @@ rolling_ets <- function(traindata, valdata, test_data, window_sizes, forecast_ho
     actual_values = valdata[i, 2]
     actual_values = actual_values[[1]]
     fit <- ets(window_data[[2]], alpha = best_alpha)
-    forecast <- predict(fit, n.ahead = forecast_horizon, newdata = actual_values)
+    forecast <- predict(fit, n.ahead = forecast_horizon, newdata = test_data)
     forecast = extract_forecast(forecast)
     forecasts[[i]] <- forecast
     if (length(forecasts) == n_test){
@@ -471,6 +609,7 @@ rolling_ets <- function(traindata, valdata, test_data, window_sizes, forecast_ho
     
   }
 }
+
 
 # QUESTION: should I use just validation data in the rolling windows where I am reestimating the random forest
 # or would it be better also given the short length of the dataset to include training data in this step and then

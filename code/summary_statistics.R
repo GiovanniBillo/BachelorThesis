@@ -27,7 +27,7 @@ source("code/functions.R")
 
 
 ## Read in data (assembled beforehand) ##
-data_oil <- read_excel("data/complete_dataframe.xlsx")
+data_oil <- read_excel("data/complete_dataframe_oil.xlsx")
 data_gas <- read_excel("data/complete_dataframe_gas.xlsx")
 
 assembled_plots(data_oil, "oil")

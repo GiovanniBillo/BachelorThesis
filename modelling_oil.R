@@ -24,6 +24,12 @@ source("code/functions.R")
 #### global ####
 window_sizes <- seq(30, 100, by = 10)  # range of window sizes to try out
 forecast_horizon <- 1  # Number of steps to forecast ahead
+accuracy_metrics <- data.frame(
+  Model = c(),
+  MSE = c(),
+  RMSE = c(),
+  MAPE = c()
+)
 
 
 #### IMPORT DATA FROM LOCAL TO AVOID RELOADING EVERYTHING EVERYTIME ####
@@ -51,7 +57,22 @@ dim(test_data)
 
 
 #### ARIMA ####
+### messing around
+predictions_arima = rolling_arima(train_data, validation_data, test_data, window_sizes, forecast_horizon)
+check_set_y = test_data[, 2]
+check_set_y = check_set_y[[1]]
 
+plot_arima = ggplot(data_oil) +
+  geom_line(aes(x = date, y = WTI, color = "Original")) +
+  geom_line(data = test_data, aes(x = date, y = predictions_arima, color = "Forecast")) +
+  scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
+  labs(title = "ARIMA forecast", y = "WTI (% change)")
+ggsave(filename = "plot_rf_arima.png", plot = plot_arima, width = 6, height = 4, dpi = 300)
+
+ARIMA = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_arima)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_arima)), measureMAPE(replace_zero(check_set_y), replace_zero(predictions_arima)))
+ARIMA
+
+### OLDarima ####
 ## training
 model_arima = auto.arima(train_data$WTI) # automatically selects the best model
 
@@ -69,7 +90,7 @@ acc_arima = accuracy(replace_zero(predictions_arima), replace_zero(check_set_y))
 
 ggplot(data_oil) +
   geom_line(aes(x = date, y = WTI, color = "Original")) +
-  geom_line(data = test_data[-(1:best_window_size_arima),], aes(x = date, y = predictions_arima, color = "Forecast")) +
+  geom_line(data = test_data, aes(x = date, y = predictions_arima, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "ARIMA forecast", y = "WTI (% change)")
 
@@ -77,20 +98,19 @@ ggplot(data_oil) +
 
 ## messing around ##
 ## training, validation and test 
-try = ets(train_data$WTI, alpha = best_alpha)
-pred_try = predict(try, newdata = test_data)
-
-best_alpha = rolling_ets(train_data, validation_data, 50, 1)
-best_alpha
-model_ets = ets(train_data$WTI, alpha = best_alpha) # also automatically selects the best alpha parameter
 predictions_ets = rolling_ets(train_data, validation_data, test_data, window_sizes, forecast_horizon)
 
-ggplot(data_oil) +
+plot_ets = ggplot(data_oil) +
   geom_line(aes(x = date, y = WTI, color = "Original")) +
   geom_line(data = test_data, aes(x = date, y = predictions_ets, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "Exponential Smoothing forecast", y = "WTI (% change)")
+ggsave(filename = "plot_ets.png", plot = plot_ets, width = 6, height = 4, dpi = 300)
 
+ETS = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_ets)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_ets)), measureMAPE(replace_zero(check_set_y), replace_zero(predictions_ets)))
+ETS
+
+# old ets ####
 ## validation
 ets_windows_evaluation = evaluate_window_size(train_data, validation_data, window_sizes, forecast_horizon, rolling_ets, model_ets)
 
@@ -143,11 +163,23 @@ no_change_forecast <- function(observations){
   most_recent_value = observations[length(observations)]
   nc_vector = rep(most_recent_value, length(observations))
   
-  accuracy(replace_zero(nc_vector), replace_zero(observations))
+  return(nc_vector)
 }
 
-acc_no_change = no_change_forecast(na.omit(data_oil$WTI))
+no_change_forecast=no_change_forecast(test_data[[2]])
 
+plot_nochange = ggplot(data_oil) +
+  geom_line(aes(x = date, y = WTI, color = "Original")) +
+  geom_line(data = test_data, aes(x = date, y = no_change_forecast, color = "Forecast")) +
+  scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
+  labs(title = "No change forecast", y = "WTI (% change)")
+ggsave(filename = "plot_nochange.png", plot = plot_nochange, width = 6, height = 4, dpi = 300)
+
+NO_CHANGE = c(measureMAE(replace_zero(check_set_y), replace_zero(no_change_forecast)), measureRMSE(replace_zero(check_set_y), replace_zero(no_change_forecast)), measureMAPE(replace_zero(check_set_y), replace_zero(no_change_forecast)))
+NO_CHANGE
+
+accuracy_benchmark = data.frame(ARIMA, ETS, NO_CHANGE)
+rownames(accuracy_benchmark) = c('MAE', 'RMSE', 'MAPE')
 
 
 
@@ -234,25 +266,25 @@ seed <- 7
 metric <- "RMSE"
 set.seed(seed)
 mtry <- sqrt(ncol(data_oil) - 1)
-tunegrid <- expand.grid(.mtry=mtry, 
-                        .ntree())
+tunegrid <- expand.grid(.mtry=mtry)
 rf_default <- train(WTI ~., data=data_oil[istrain, ], method="rf", metric=metric, tuneGrid=tunegrid, trControl=control)
 print(rf_default)
 
 predictions_rf2 <- predict(rf_default, newdata =  data_oil[!istrain, ])
 
-ggplot(data_oil) +
+plot_rf_default = ggplot(data_oil) +
   geom_line(aes(x = date, y = WTI, color = "Original")) +
   geom_line(data = data_oil[!istrain, ], aes(x = date, y = predictions_rf2, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
-  labs(title = "Random Forest forecast", y = "WTI (% change)")
+  labs(title = "Random Forest forecast (default)", y = "WTI (% change)")
+ggsave(filename = "plot_rf_default.png", plot = plot_rf_default, width = 6, height = 4, dpi = 300)
 
 ## compute accuracy
 check_set_y = as.numeric(subset(data_oil[!istrain, ], select = WTI))
 check_set_y = check_set_y$WTI
 
-accuracy_rf_default = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_rf2)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_rf2)), measureMAPE(replace_zero(check_set_y), replace_zero(predictions_rf2)))
-accuracy_rf_default
+RANDOM_FOREST_DEFAULT = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_rf2)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_rf2)), measureMAPE(replace_zero(check_set_y), replace_zero(predictions_rf2)))
+RANDOM_FOREST_DEFAULT
 
 # #### using random Search ####
 # control <- trainControl(method="repeatedcv", number=5, repeats=3, search="random")
@@ -266,10 +298,10 @@ accuracy_rf_default
 
 
 #### using grid search (reference: https://www.projectpro.io/recipes/tune-hyper-parameters-grid-search-r)####
-num_features = ncol(data_oil) - 1 # removing target and date
+num_features = ncol(data_oil) - 1 +  31
 
 # specifying the CV technique which will be passed into the train() function later and number parameter is the "k" in K-fold cross validation
-train_control = trainControl(method = "cv", number = 5, search = "grid")
+train_control = trainControl(method = "cv", number = 5, search = "random")
 
 set.seed(50)
 # Customsing the tuning grid
@@ -281,14 +313,20 @@ print(model_grid)
 
 predictions_rf3 = predict(model_grid, newdata = data_oil[!istrain, ])
 
-ggplot(data_oil) +
+plot_rf_random = ggplot(data_oil) +
   geom_line(aes(x = date, y = WTI, color = "Original")) +
   geom_line(data = data_oil[!istrain, ], aes(x = date, y = predictions_rf3, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "Random Forest forecast (grid search)", y = "WTI (% change)")
 
-accuracy_rf_grid = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_rf3)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_rf3)), measureMAPE(replace_zero(check_set_y), replace_zero(predictions_rf3)))
-accuracy_rf_grid
+ggsave(filename = "plot_rf_random.png", plot = plot_rf_random, width = 6, height = 4, dpi = 300)
+RANDOM_FOREST_RANDOM = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_rf3)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_rf3)), measureMAPE(replace_zero(check_set_y), replace_zero(predictions_rf3)))
+RANDOM_FOREST_RANDOM
+
+accuracy_ml = data.frame(RANDOM_FOREST_DEFAULT, RANDOM_FOREST_RANDOM)
+rownames(accuracy_ml) = c('MAE', 'RMSE', 'MAPE')
+
+cbind(accuracy_benchmark, accuracy_ml)
 
 ## rolling windows evaluation ##
 
