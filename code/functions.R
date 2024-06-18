@@ -366,132 +366,6 @@ get_params <- function(model){
   }
 }
 
-# rolling_arima <- function(data, window_size, forecast_horizon, model) {
-#   n <- length(data[[2]])
-#   forecasts <- numeric(n - window_size - forecast_horizon + 1)
-#   
-#   for (i in 1:(n - window_size - forecast_horizon + 1)) {
-#     tryCatch({
-#       window_data <- data[i:(i + window_size - 1), ]
-#       fit <- arima(window_data[[2]], order = get_params(model))  # parameters extracted by the function from the best given model chosen by auto.arima()
-#       forecast <- predict(fit, n.ahead = forecast_horizon)
-#       forecasts[i] <- extract_forecast(forecast)
-#     }, error = function(e) {
-#       # Error-handling block
-#       # Print error message
-#       print(paste("Error:", e))
-#       
-#       # First-level error handling
-#       tryCatch({
-#         # Apply differencing to make the data stationary
-#         window_data[[2]] <- c(NA, diff(window_data[[2]], lag = 1, differences = 1))  # First-order differencing
-#         
-#         # Retry fitting the ARIMA model with differenced data
-#         fit <- arima(window_data[[2]], order = c(3, 0, 0))
-#         
-#         # Proceed with forecasting
-#         forecast <- predict(fit, n.ahead = forecast_horizon)
-#         forecasts[i] <- extract_forecast(forecast)
-#       }, error = function(e) {
-#         # Second-level error handling
-#         print(paste("Error (second level):", e))
-#         browser()  # Enter browser mode to debug
-#         
-#         # Apply differencing to make the data stationary again
-#         window_data[[2]] <- c(NA, diff(window_data[[2]], lag = 1, differences = 1))  # First-order differencing
-#         
-#         # Retry fitting the ARIMA model with differenced data
-#         fit <- arima(window_data[[2]], order = c(3, 0, 0))
-#         
-#         # Proceed with forecasting
-#         forecast <- predict(fit, n.ahead = forecast_horizon, newdata = )
-#         forecasts[i] <- extract_forecast(forecast)
-#       })
-#     })
-#   }
-#   
-#   return(forecasts)
-# }
-
-# rolling_arima <- function(traindata, valdata, testdata, window_sizes, forecast_horizon) {
-#   # browser()
-#   n_forecasts <- length(valdata[[2]])
-#   n_train = length(train_data[[2]])
-#   n_test = length(test_data[[2]])
-#   results <- data.frame(ORDER = numeric(), WINDOWSIZE = numeric(), RMSE = numeric())
-#   
-#   for (window_size in window_sizes) {
-#     for (i in 1:(n_train - window_size - forecast_horizon + 1)) {
-#       while(i <= n_forecasts){
-#         browser()
-#         window_data <- traindata[i:(i + window_size - 1), ]
-#         actual_values = valdata[i, 2]
-#         actual_values = actual_values[[1]]
-#         fit <- auto.arima(window_data[[2]])
-#         forecast <- predict(fit, n.ahead = forecast_horizon, newdata = valdata[i, -2])
-#         forecast = extract_forecast(forecast)
-#         order = get_params(fit)
-#         # mae <- mae(actual_values, forecast)
-#         # mse <- mse(actual_values, forecast)
-#         rmse <- rmse(actual_values, forecast)
-#         
-#         results <- rbind(results, data.frame(ORDER = order, WINDOWSIZE = window_size, RMSE = rmse))
-#       }
-#     }
-#   }
-#   
-#   browser()
-#   min_rmse_index = which.min(results$RMSE)
-#   best_order = results$ORDER[min_rmse_index]
-#   best_window_size = results$WINDOWSIZE[min_rmse_index]
-#   
-#   forecasts <- numeric(n_forecasts - best_window_size - forecast_horizon + 1)
-#   
-#   for (i in 1:(n - window_size - forecast_horizon + 1)) {
-#     tryCatch({
-#       window_data <- traindata[i:(i + window_size - 1), ]
-#       actual_values = test_data[i, 2]
-#       actual_values = actual_values[[1]]
-#       fit <- arima(window_data[[2]], order = best_order)  # parameters extracted by the function from the best given model chosen by auto.arima()
-#       forecast <- predict(fit, n.ahead = forecast_horizon, newdata = actual_values)
-#       forecasts[i] <- extract_forecast(forecast)
-#     }, error = function(e) {
-#       # Error-handling block
-#       # Print error message
-#       print(paste("Error:", e))
-#       
-#       # First-level error handling
-#       tryCatch({
-#         # Apply differencing to make the data stationary
-#         window_data[[2]] <- c(NA, diff(window_data[[2]], lag = 1, differences = 1))  # First-order differencing
-#         
-#         # Retry fitting the ARIMA model with differenced data
-#         fit <- arima(window_data[[2]], order = best_order)
-#         
-#         # Proceed with forecasting
-#         forecast <- predict(fit, n.ahead = forecast_horizon, newdata = actual_values)
-#         forecasts[i] <- extract_forecast(forecast)
-#       }, error = function(e) {
-#         # Second-level error handling
-#         print(paste("Error (second level):", e))
-#         # browser()  # Enter browser mode to debug
-#         
-#         # Apply differencing to make the data stationary again
-#         window_data[[2]] <- c(NA, diff(window_data[[2]], lag = 1, differences = 1))  # First-order differencing
-#         
-#         # Retry fitting the ARIMA model with differenced data
-#         fit <- arima(window_data[[2]], order = best_order)
-#         
-#         # Proceed with forecasting
-#         forecast <- predict(fit, n.ahead = forecast_horizon, newdata = actual_values)
-#         forecasts[i] <- extract_forecast(forecast)
-#       })
-#     })
-#   }
-#   
-#   return(forecasts)
-# }
-
 rolling_arima <- function(traindata, valdata, test_data, window_sizes, forecast_horizon) {
   n_forecasts <- length(valdata[[2]])
   n_train = length(train_data[[2]])
@@ -526,6 +400,10 @@ rolling_arima <- function(traindata, valdata, test_data, window_sizes, forecast_
   best_order = results$ORDER[min_rmse_index]
   best_window_size = results$WINDOWSIZE[min_rmse_index]
   
+  print(paste("The best ARMA order is:", best_order))
+  cat("The best window size for ARIMA is: ", best_window_size)
+  
+  
   forecasts <- numeric(n_forecasts - best_window_size - forecast_horizon + 1)
   
   for (i in 1:(n_train - window_size - forecast_horizon + 1)) {
@@ -543,23 +421,6 @@ rolling_arima <- function(traindata, valdata, test_data, window_sizes, forecast_
     
   }
 }
-
-# rolling_ets <- function(data, window_size, forecast_horizon, model) {
-#   # browser()
-#   n <- length(data[[2]])
-#   forecasts <- numeric(n - window_size - forecast_horizon + 1)
-# 
-#   for (i in 1:(n - window_size - forecast_horizon + 1)) {
-#     # browser()
-#     window_data <- data[i:(i + window_size - 1), ]
-#     alpha = get_params(model)
-#     fit <- ets(window_data[[2]], alpha = alpha)
-#     forecast <- predict(fit, n.ahead = forecast_horizon)
-#     forecasts[i] <- extract_forecast(forecast)
-#   }
-# 
-#   return(forecasts)
-# }
 
 rolling_ets <- function(traindata, valdata, test_data, window_sizes, forecast_horizon) {
   n_forecasts <- length(valdata[[2]])
@@ -591,6 +452,9 @@ rolling_ets <- function(traindata, valdata, test_data, window_sizes, forecast_ho
   min_rmse_index = which.min(results$RMSE)
   best_alpha = results$ALPHA[min_rmse_index]
   best_window_size = results$WINDOWSIZE[min_rmse_index]
+  
+  cat("The best ALPHA parameter is: ", best_alpha)
+  cat("The best window size for ETS is: ", best_window_size)
   
   forecasts <- numeric(n_forecasts - best_window_size - forecast_horizon + 1)
   
