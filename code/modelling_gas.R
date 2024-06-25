@@ -1,4 +1,5 @@
 #### MODELLING GAS
+setwd("C:/Users/billo/OneDrive/Desktop/FAU/Thesis/data")
 
 #### library calls ####
 ssh <- suppressPackageStartupMessages
@@ -9,15 +10,23 @@ ssh(library(forecast))
 ssh(library(rugarch))
 ssh(library(ModelMetrics))
 ssh(library(keras)) # neural networks
+ssh(library(readxl))
+ssh(library(writexl))
+ssh(library(tidyr))
+ssh(library(ModelMetrics))
+library(ggplot2)
+library(mlr)
 
-source("functions.R")
+source("code/functions.R")
 
-#### CONSTANTS ####
-window_size = 50
+#### global ####
+window_sizes <- seq(30, 100, by = 10)  # range of window sizes to try out
+forecast_horizon <- 1  # Number of steps to forecast ahead
 
 #### IMPORT DATA FROM LOCAL TO AVOID RELOADING EVERYTHING EVERYTIME ####
-data_gas <- read_excel("GAS_firstdifferenced.xlsx")
+data_gas <- read_excel("data/GAS_firstdifferenced.xlsx")
 data_gas = drop_na(data_gas)
+
 
 ## train-validation-test split 
 set.seed(122)
@@ -38,215 +47,274 @@ dim(train_data)
 dim(validation_data)
 dim(test_data)
 
-## Benchmark models ##
-accuracy_table= data.frame(
-  col1 = rep(NA, 3) # Placeholder to merge later. Number corresponds to the 7 statistics well include
-)
 
-# ARIMA
-# Define rolling window size
+#### ARIMA ####
+predictions_arima_gas = rolling_arima(train_data, validation_data, test_data, window_sizes, forecast_horizon)
+check_set_y = test_data[, 2]
+check_set_y = check_set_y[[1]]
 
-# Iterate over the rolling window (VALIDATION)####
-# arima_model <- auto.arima(train_data$HENRYHUB)
-# summary(arima_model)
-# rolling_windows(train_data, validation_data, auto.arima, 10)
-
-# # Train
-# arima_model <- auto.arima(train_data$HENRYHUB)
-# 
-# # Validate
-# validation_forecast_arima <- predict(arima_model, newdata = validation_data)
-# validation_forecast_arima$mean
-# validation_accuracy_arima <- accuracy(validation_forecast_arima, validation_data$HENRYHUB[1:10])
-# print(validation_accuracy_arima)
-
-# Iterate over the rolling window (TESTING)####
-
-predictions_arima = rolling_windows(train_data, test_data, auto.arima, 50)
-
-# window_size = 10
-# n_windows = nrow(test_data) - window_size
-# predictions = c()
-# for (i in 1:n_windows) {
-#   # Define training and validation data
-#   # if (i > 7){
-#   #   browser()
-#   #   
-#   # }
-#   train_subset <- train_data[i:(i + window_size - 1), ]
-#   check_subset <- train_data[(i + window_size), ] # test or train
-#   
-#   model <- auto.arima(train_subset$HENRYHUB)
-#   
-#   # Make predictions
-#   check_set_x = subset(check_subset, select = -HENRYHUB)
-#   new_prediction <- predict(model, newdata = check_set_x)
-#   class(new_prediction)
-#   predictions = c(predictions, extract_forecast(new_prediction))
-# }
-# predictions
-# 
-# predictions
-
-# Evaluate performance 
-
-check_set_y = subset(test_data, select = HENRYHUB)
-check_set_y = check_set_y$HENRYHUB[(window_size + 1):length(test_data$HENRYHUB)]
-
-# return error metrics
-acc_arima = accuracy(na.omit(predictions_arima), na.omit(check_set_y))
-
-ggplot(data_gas) +
+plot_arima_gas = ggplot(data_gas) +
   geom_line(aes(x = date, y = HENRYHUB, color = "Original")) +
-  geom_line(data = test_data[-(1:50),], aes(x = date, y = predictions_arima, color = "Forecast")) +
+  geom_line(data = test_data, aes(x = date, y = predictions_arima, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "ARIMA forecast", y = "HENRYHUB (% change)")
+ggsave(filename = "plot_arima_gas.png", plot = plot_arima_gas, width = 6, height = 4, dpi = 300)
 
+ARIMA = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_arima)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_arima)))
+ARIMA
 
-# # Testing
-# test_forecast_arima <- predict(arima_model, newdata = test_data)
-# test_accuracy_arima <- accuracy(test_forecast, test_data$HENRYHUB[1:10])
-# print(test_accuracy_arima)
+#### Exponential Smoothing ####
+predictions_ets_gas = rolling_ets(train_data, validation_data, test_data, window_sizes, forecast_horizon)
 
-# Exponential Smoothing
-
-# exp_smooth_model <- ets(train_data$HENRYHUB)
-# summary(exp_smooth_model)
-# # Validate
-# 
-# rolling_windows(train_data, validation_data, exp_smooth_model , 10)
-
-# Testing
-
-predictions_ets = rolling_windows(train_data, test_data, ets, 50)
-
-ggplot(data_gas) +
+plot_ets_gas = ggplot(data_gas) +
   geom_line(aes(x = date, y = HENRYHUB, color = "Original")) +
-  geom_line(data = test_data[-(1:50),], aes(x = date, y = predictions_ets, color = "Forecast")) +
+  geom_line(data = test_data, aes(x = date, y = predictions_ets, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
   labs(title = "Exponential Smoothing forecast", y = "HENRYHUB (% change)")
-# 
-# window_size = 10
-# n_windows = nrow(test_data) - window_size
-# predictions = c()
-# for (i in 1:n_windows) {
-#   # Define training and validation data
-#   # browser()
-#   train_subset <- train_data[i:(i + window_size - 1), ]
-#   check_subset <- train_data[(i + window_size), ] # test or train
-#   
-#   model <- ets(train_subset$HENRYHUB)
-#   
-#   # Make predictions
-#   check_set_x = subset(check_subset, select = -HENRYHUB)
-#   new_prediction <- predict(model, newdata = check_set_x)
-#   class(new_prediction)
-#   predictions = c(predictions, extract_forecast(new_prediction))
-# }
-# 
-# extract_forecast(new_prediction)
+ggsave(filename = "plot_ets_gas.png", plot = plot_ets, width = 6, height = 4, dpi = 300)
 
-# Evaluate performance 
-check_set_y = subset(test_data, select = HENRYHUB) 
-check_set_y = check_set_y$HENRYHUB[(window_size + 1):length(test_data$HENRYHUB)]
+ETS = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_ets)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_ets)))
+ETS
 
-# return error metrics
-acc_ets = accuracy(na.omit(predictions_ets), na.omit(check_set_y))
-
-
-# No change
+#### No change ####
 
 no_change_forecast <- function(observations){
-  most_recent_value = observations[length(observations)]
+  most_recent_value = observations[1]
   nc_vector = rep(most_recent_value, length(observations))
   
-  accuracy(nc_vector, observations)
+  return(nc_vector)
 }
 
-acc_no_change = no_change_forecast(na.omit(data_gas$HENRYHUB))
+no_change_gas = no_change_forecast(test_data$HENRYHUB)
+NO_CHANGE = c(measureMAE(replace_zero(check_set_y), replace_zero(no_change_gas)), measureRMSE(replace_zero(check_set_y), replace_zero(no_change_gas)))
 
-## ML Models ##
 
+#### RANDOM FOREST ####
+## using caret (reference: https://machinelearningmastery.com/tune-machine-learning-algorithms-in-r/) ####
 
-# Random forests 
 library(randomForest)
-n <- names(data_gas)
-f <- as.formula(paste("HENRYHUB ~", paste(n[!n %in% c("HENRYHUB", "day")], collapse = " + ")))
-# ml_data = train_data[, !grepl("day", names(train_data))]
+library(mlbench)
+library(caret)
 
-# single estimation
-f
-mtry = floor(length(names(data_gas))/3) # for regression problems
-rf = randomForest(f, data = data_gas, mtry = mtry)
-rf
-importance(rf)
-varImpPlot(rf)
+# Determine the split point
+split_point <- floor(0.8 * nrow(data_gas))
 
-# # rw estimation
-# rolling_windows(train_data, test_data, rf, 10)
+# Assign the first 80% to the training set and the remaining 20% to the test set
 
-window_size = 50
-n_windows = nrow(test_data) - window_size
-predictions_rf = c()
+data_gas$train <- c(rep(TRUE, split_point), rep(FALSE, nrow(data_gas) - split_point))
+istrain <- data_gas$train
+data_gas$train <- NULL
 
-for (i in 1:n_windows) {
-  # Define training and validation data
-  # browser()
-  train_subset <- train_data[i:(i + window_size - 1), ]
-  check_subset <- train_data[(i + window_size), ] # test or train
-  
-  mtry = floor(length(names(data_gas))/3) # for regression problems
-  model = randomForest(f, data = train_subset, mtry = mtry)
-  
-  # Make predictions
-  check_set_x = subset(check_subset, select = -HENRYHUB)
-  new_prediction <- predict(model, newdata = check_set_x)
-  class(new_prediction)
-  predictions_rf = c(predictions_rf, extract_forecast(new_prediction))
-}
+control <- trainControl(method="repeatedcv", number=5, repeats=3)
+seed <- 7
+metric <- "RMSE"
+set.seed(seed)
+mtry <- sqrt(ncol(data_gas) - 1)
+tunegrid <- expand.grid(.mtry=mtry)
+rf_default <- train(HENRYHUB ~., data=data_gas[istrain, ], method="rf", metric=metric, tuneGrid=tunegrid, trControl=control)
+print(rf_default)
 
-# Evaluate performance 
-check_set_y = subset(test_data, select = HENRYHUB) 
-check_set_y = check_set_y$HENRYHUB[(window_size + 1):length(test_data$HENRYHUB)]
+predictions_rf_default_gas <- predict(rf_default, newdata =  data_gas[!istrain, ])
 
-# return error metrics
-acc_rf = accuracy(na.omit(predictions_rf), na.omit(check_set_y))
-
-
-ggplot(data_gas) +
+plot_rf_default_gas = ggplot(data_gas) +
   geom_line(aes(x = date, y = HENRYHUB, color = "Original")) +
-  geom_line(data = test_data[-(1:50),], aes(x = date, y = predictions_rf, color = "Forecast")) +
+  geom_line(data = data_gas[!istrain, ], aes(x = date, y = predictions_rf_default_gas, color = "Forecast")) +
   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
-  labs(title = "Random Forest forecast", y = "HENRYHUB (% change)")
+  labs(title = "Random Forest forecast (default)", y = "HENRYHUB (% change)")
+ggsave(filename = "plot_rf_default_gas.png", plot = plot_rf_default_gas, width = 6, height = 4, dpi = 300)
 
-# Recurrent Neural Network
+## compute accuracy
 
-NNdata = data.matrix(data[, -1]) # remove date column
-NNtrain <- NNdata[1:n_train, ]
-NNvalidation <- NNdata[(n_train + 1):(n_train + n_validation), ]
-NNtest <- NNdata[(n_train + n_validation + 1):n, ]
-# preprocessing
-mean = apply(NNtrain, 2, mean) # 2 parameter indicates that function will be applied column-wise
-std = apply(NNtrain, 2, sd)
-NNdata <- scale(NNdata, center = mean, scale = std)
+RANDOM_FOREST_DEFAULT = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_rf_default_gas)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_rf_default_gas)))
+RANDOM_FOREST_DEFAULT
 
-accuracy_table = rbind(acc_arima, acc_ets, acc_no_change, acc_rf)
-rownames(accuracy_table) = c("ARIMA", "ETS", "No change", "Random Forest")
+## using random search (reference: https://www.projectpro.io/recipes/tune-hyper-parameters-grid-search-r)####
+set.seed(50)
+num_features = ncol(data_gas) - 1 +  31
 
-create_table_from_df(accuracy_table, "Accuracy measures Benchmark vs ML models - GAS")
+# specifying the CV technique which will be passed into the train() function later and number parameter is the "k" in K-fold cross validation
+train_control = trainControl(method = "cv", number = 5, search = "random")
 
-#### archive ####
-# # Pad shorter vectors with NA to make them equal length
-# data <- lapply(data, function(x) {
-#   if (length(x) < max_length) {
-#     c(x, rep(NA, max_length - length(x)))
-#   } else {
-#     x
-#   }
-# })
+# Customsing the tuning grid
+rfGrid <-  expand.grid(.mtry = (1:num_features))
+
+# training a random forest tree model while tuning parameters
+model_random = train(HENRYHUB~., data = data_gas[istrain,], method = "rf", trControl = train_control, tuneGrid = rfGrid)
+print(model_random)
+
+predictions_rf_random_gas = predict(model_random, newdata = data_gas[!istrain, ])
+
+plot_rf_random_gas = ggplot(data_gas) +
+  geom_line(aes(x = date, y = HENRYHUB, color = "Original")) +
+  geom_line(data = data_gas[!istrain, ], aes(x = date, y = predictions_rf_random_gas, color = "Forecast")) +
+  scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
+  labs(title = "Random Forest forecast (random search)", y = "HENRYHUB (% change)")
+
+ggsave(filename = "plot_rf_random_gas.png", plot = plot_rf_random_gas, width = 6, height = 4, dpi = 300)
+RANDOM_FOREST_RANDOM = c(measureMAE(replace_zero(check_set_y), replace_zero(predictions_rf_random_gas)), measureRMSE(replace_zero(check_set_y), replace_zero(predictions_rf_random_gas)))
+RANDOM_FOREST_RANDOM
+
+accuracy_ml = data.frame(RANDOM_FOREST_DEFAULT, RANDOM_FOREST_RANDOM)
+rownames(accuracy_ml) = c('MAE', 'RMSE')
+
+#### Gather predictions ####
+predictions_benchmark_gas <- data.frame(
+  date = test_data$date,
+  actual = test_data$HENRYHUB,
+  ARIMA = predictions_arima,
+  ETS = predictions_ets,
+  NoChange = no_change_gas
+)
+
+predictions_ml_gas <- data.frame(
+  date = test_data$date,
+  actual = test_data$HENRYHUB,
+  RandomForestDefault = predictions_rf2,
+  RandomForestRandom = predictions_rf3,
+  RecurrentNeuralNetwork = predictions_rnn
+)
+
+#### Convert Data to Long Format ###
+predictions_long_benchmark_gas <- predictions_benchmark_gas %>%
+  pivot_longer(cols = -date, names_to = "Model", values_to = "Value")
+
+predictions_long_ml_gas <- predictions_ml_gas %>%
+  pivot_longer(cols = -date, names_to = "Model", values_to = "Value")
+
+#### Plot ###
+combined_plot_benchmark_gas <- ggplot(predictions_long_benchmark_gas, aes(x = date, y = Value, color = Model)) +
+  geom_line() +
+  scale_color_manual(values = c(
+    "actual" = "black",
+    "ARIMA" = "red",
+    "ETS" = "green",
+    "NoChange" = "blue"
+  )) +
+  labs(title = "Forecast Models Comparison (Benchmark)", y = "HENRYHUB (% change)") 
+
+combined_plot_benchmark_gas
+ggsave(filename = "combined_plot_benchmark_gas.png", plot = combined_plot_benchmark_gas, width = 6, height = 4, dpi = 300)
+
+
+combined_plot_ml <- ggplot(predictions_long_ml_gas, aes(x = date, y = Value, color = Model)) +
+  geom_line() +
+  scale_color_manual(values = c(
+    "actual" = "black",
+    "RandomForestDefault" = "blue",
+    "RandomForestRandom" = "red",
+    "RecurrentNeuralNetwork" = "green"
+  )) +
+  labs(title = "Forecast Models Comparison (ML)", y = "HENRYHUB (% change)")
+
+combined_plot_ml
+
+actuals_gas <- data_gas[!istrain, "HENRYHUB"]
+actuals_gas <- actuals_gas$HENRYHUB
+
+RNNRANDOMSEARCH_gas <- c(
+  measureMAE(replace_zero(actuals_gas), replace_zero(rnn_predictions$`Predictions gas w/GPRD`)),
+  measureRMSE(replace_zero(actuals_gas), replace_zero(rnn_predictions$`Predictions gas w/GPRD`))
+)
+
+## accuracy metrics 
+
+# Combine into a data frame
+accuracy_df_gas_gprd <- data.frame(
+  Model = c("ARIMA", "ETS", "No Change", "RF Default", "RF Random", "RNN"),
+  MAE = c(ARIMA[1], ETS[1], NO_CHANGE[1], RANDOM_FOREST_DEFAULT[1], RANDOM_FOREST_RANDOM[1], RNNRANDOMSEARCH_gas[1]),
+  RMSE = c(ARIMA[2], ETS[2], NO_CHANGE[2], RANDOM_FOREST_DEFAULT[2], RANDOM_FOREST_RANDOM[2], RNNRANDOMSEARCH_gas[2])
+  #  MAPE = c(accuracy_arima[4], accuracy_ets[4], accuracy_no_change[4], accuracy_rf_default[3], accuracy_rf_random[3], accuracy_rnn_randomsearch[3])
+)
+
+#### without GPRD #### 
+data_gas_nogprd = subset(data_gas, select = -GPRD)
+
+#### RANDOM FORESTS ####
+
+#### using caret (reference: https://machinelearningmastery.com/tune-machine-learning-algorithms-in-r/) ####
+
+library(randomForest)
+library(mlbench)
+library(caret)
+
+# Determine the split point
+split_point_nogprd <- floor(0.8 * nrow(data_gas_nogprd))
+
+# Assign the first 80% to the training set and the remaining 20% to the test set
+data_gas_nogprd$train_nogprd <- c(rep(TRUE, split_point_nogprd), rep(FALSE, nrow(data_gas_nogprd) - split_point_nogprd))
+istrain_nogprd <- data_gas_nogprd$train_nogprd
+data_gas_nogprd$train_nogprd <- NULL
+
+control_nogprd <- trainControl(method="repeatedcv", number=10, repeats=3)
+seed_nogprd <- 7
+metric_nogprd <- "RMSE"
+set.seed(seed_nogprd)
+mtry_nogprd <- sqrt(ncol(data_gas_nogprd) - 1)
+tunegrid_nogprd <- expand.grid(.mtry=mtry_nogprd)
+rf_default_nogprd <- train(HENRYHUB ~., data=data_gas_nogprd[istrain_nogprd, ], method="rf", metric=metric_nogprd, tuneGrid=tunegrid_nogprd, trControl=control_nogprd)
+print(rf_default_nogprd)
+
+predictions_rf2_nogprd <- predict(rf_default_nogprd, newdata = data_gas_nogprd[!istrain_nogprd, ])
+
+# plot_rf_default_nogprd = ggplot(data_gas_nogprd) +
+#   geom_line(aes(x = date, y = HENRYHUB, color = "Original")) +
+#   geom_line(data = data_gas_nogprd[!istrain_nogprd, ], aes(x = date, y = predictions_rf2_nogprd, color = "Forecast")) +
+#   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
+#   labs(title = "Random Forest forecast (default)", y = "HENRYHUB (% change)")
+# ggsave(filename = "plot_rf_default_nogprd.png", plot = plot_rf_default_nogprd, width = 6, height = 4, dpi = 300)
+
+## compute accuracy
+check_set_y_nogprd <- data_gas_nogprd[!istrain_nogprd, "HENRYHUB"]  # Ensure you have this variable in your context
+check_set_y_nogprd = check_set_y_nogprd$HENRYHUB
+RANDOM_FOREST_DEFAULT_gas_nogprd = c(measureMAE(replace_zero(check_set_y_nogprd), replace_zero(predictions_rf2_nogprd)), measureRMSE(replace_zero(check_set_y_nogprd), replace_zero(predictions_rf2_nogprd)), measureMAPE(replace_zero(check_set_y_nogprd), replace_zero(predictions_rf2_nogprd)))
+RANDOM_FOREST_DEFAULT_gas_nogprd
+
+#### using random search (reference: https://www.projectpro.io/recipes/tune-hyper-parameters-grid-search-r)####
+set.seed(50)
+num_features_nogprd = ncol(data_gas_nogprd) - 1 +  31
+
+# specifying the CV technique which will be passed into the train() function later and number parameter is the "k" in K-fold cross validation
+train_control_nogprd = trainControl(method = "cv", number = 5, search = "random")
+
+# Customising the tuning grid
+rfGrid_nogprd <-  expand.grid(.mtry = (1:num_features_nogprd))
+
+# training a random forest tree model while tuning parameters
+model_grid_nogprd = train(HENRYHUB ~., data = data_gas_nogprd[istrain_nogprd, ], method = "rf", trControl = train_control_nogprd, tuneGrid = rfGrid_nogprd)
+print(model_grid_nogprd)
+
+predictions_rf3_nogprd = predict(model_grid_nogprd, newdata = data_gas_nogprd[!istrain_nogprd, ])
+
+# plot_rf_random_nogprd = ggplot(data_gas_nogprd) +
+#   geom_line(aes(x = date, y = HENRYHUB, color = "Original")) +
+#   geom_line(data = data_gas_nogprd[!istrain_nogprd, ], aes(x = date, y = predictions_rf3_nogprd, color = "Forecast")) +
+#   scale_color_manual(values = c("Original" = "blue", "Forecast" = "red")) +
+#   labs(title = "Random Forest forecast (grid search)", y = "HENRYHUB (% change)")
 # 
-# # Convert the list of padded vectors into a dataframe
-# data <- data.frame(data)
-# Find the maximum length among the vectors
-# max_length <- max(sapply(data, length))
+# ggsave(filename = "plot_rf_random_nogprd.png", plot = plot_rf_random_nogprd, width = 6, height = 4, dpi = 300)
+
+RANDOM_FOREST_RANDOM_gas_nogprd = c(measureMAE(replace_zero(check_set_y_nogprd), replace_zero(predictions_rf3_nogprd)), measureRMSE(replace_zero(check_set_y_nogprd), replace_zero(predictions_rf3_nogprd)), measureMAPE(replace_zero(check_set_y_nogprd), replace_zero(predictions_rf3_nogprd)))
+RANDOM_FOREST_RANDOM_gas_nogprd
+
+# Compile accuracy results
+accuracy_ml_nogprd = data.frame(RANDOM_FOREST_DEFAULT_gas_nogprd, RANDOM_FOREST_RANDOM_gas_nogprd)
+rownames(accuracy_ml_nogprd) = c('MAE', 'RMSE', 'MAPE')
+
+# Assuming accuracy_benchmark_nogprd exists in your environment
+cbind(accuracy_benchmark_nogprd, accuracy_ml_nogprd)
+
+RNNRANDOMSEARCH_gas_nogprd <- c(
+  measureMAE(replace_zero(actuals_gas), replace_zero(rnn_predictions$`Predictions gas w.o/GPRD`)),
+  measureRMSE(replace_zero(actuals_gas), replace_zero(rnn_predictions$`Predictions gas w.o/GPRD`))
+)
+
+accuracy_df_gas_nogprd <- data.frame(
+  Model = c("RF Default", "RF Random", "RNN Random Search"),
+  MAE = c(RANDOM_FOREST_DEFAULT_gas_nogprd[1], RANDOM_FOREST_RANDOM_gas_nogprd[1], RNNRANDOMSEARCH_gas_nogprd[1]),
+  RMSE = c(RANDOM_FOREST_DEFAULT_gas_nogprd[2], RANDOM_FOREST_RANDOM_gas_nogprd[2], RNNRANDOMSEARCH_gas_nogprd[2])
+)
+
+# Print the accuracy dataframe
+print(accuracy_df_gas_nogprd)
+
 
